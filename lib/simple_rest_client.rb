@@ -4,7 +4,7 @@ require 'net/http'
 require 'net/https'
 require 'json'
 
-# Base class do help easily create REST HTTP clients.
+# Base class to help easily create REST HTTP clients.
 #
 # Example client:
 #   class ExampleAPI < SimpleRESTClient
