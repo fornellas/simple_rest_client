@@ -51,7 +51,7 @@ class SimpleRESTClient
   # Default validator used for any HTTP request. It will raise an exception unless the response is a Net::HTTPSuccess.
   DEFAULT_RESPONSE_VALIDATOR = lambda do |response|
     unless response.is_a? Net::HTTPSuccess
-      raise "HTTP request no successfull"
+      raise "HTTP request not successfull"
     end
   end.freeze
 
@@ -164,7 +164,7 @@ class SimpleRESTClient
     end
   end
 
-  # :section: HTTP verbs
+  # :section: RFC7231 Hypertext Transfer Protocol (HTTP/1.1): Semantics and Content
 
   ##
   # :method: get
@@ -179,6 +179,20 @@ class SimpleRESTClient
   # head(path, query: {}, headers: {}) {|response| ... } -> block return value
   # head(path, query: {}, headers: {}) -> Net::HTTPResponse
   http_method :head
+
+  ##
+  # :method: post
+  # :call-seq:
+  # post(path, query: {}, headers: {}, body: nil) {|response| ... } -> block return value
+  # post(path, query: {}, headers: {}, body: nil) -> Net::HTTPResponse
+  http_method :post
+
+  ##
+  # :method: put
+  # :call-seq:
+  # put(path, query: {}, headers: {}, body: nil) {|response| ... } -> block return value
+  # put(path, query: {}, headers: {}, body: nil) -> Net::HTTPResponse
+  http_method :put
 
   ##
   # :method: delete
@@ -201,33 +215,7 @@ class SimpleRESTClient
   # trace(path, query: {}, headers: {}) -> Net::HTTPResponse
   http_method :trace
 
-  ##
-  # :method: copy
-  # :call-seq:
-  # copy(path, query: {}, headers: {}) {|response| ... } -> block return value
-  # copy(path, query: {}, headers: {}) -> Net::HTTPResponse
-  http_method :copy
-
-  ##
-  # :method: move
-  # :call-seq:
-  # move(path, query: {}, headers: {}) {|response| ... } -> block return value
-  # move(path, query: {}, headers: {}) -> Net::HTTPResponse
-  http_method :move
-
-  ##
-  # :method: post
-  # :call-seq:
-  # post(path, query: {}, headers: {}, body: nil) {|response| ... } -> block return value
-  # post(path, query: {}, headers: {}, body: nil) -> Net::HTTPResponse
-  http_method :post
-
-  ##
-  # :method: put
-  # :call-seq:
-  # put(path, query: {}, headers: {}, body: nil) {|response| ... } -> block return value
-  # put(path, query: {}, headers: {}, body: nil) -> Net::HTTPResponse
-  http_method :put
+  # :section: RFC5789 PATCH Method for HTTP
 
   ##
   # :method: patch
@@ -235,41 +223,6 @@ class SimpleRESTClient
   # patch(path, query: {}, headers: {}, body: nil) {|response| ... } -> block return value
   # patch(path, query: {}, headers: {}, body: nil) -> Net::HTTPResponse
   http_method :patch
-
-  ##
-  # :method: propfind
-  # :call-seq:
-  # propfind(path, query: {}, headers: {}, body: nil) {|response| ... } -> block return value
-  # propfind(path, query: {}, headers: {}, body: nil) -> Net::HTTPResponse
-  http_method :propfind
-
-  ##
-  # :method: proppatch
-  # :call-seq:
-  # proppatch(path, query: {}, headers: {}, body: nil) {|response| ... } -> block return value
-  # proppatch(path, query: {}, headers: {}, body: nil) -> Net::HTTPResponse
-  http_method :proppatch
-
-  ##
-  # :method: mkcol
-  # :call-seq:
-  # mkcol(path, query: {}, headers: {}, body: nil) {|response| ... } -> block return value
-  # mkcol(path, query: {}, headers: {}, body: nil) -> Net::HTTPResponse
-  http_method :mkcol
-
-  ##
-  # :method: lock
-  # :call-seq:
-  # lock(path, query: {}, headers: {}, body: nil) {|response| ... } -> block return value
-  # lock(path, query: {}, headers: {}, body: nil) -> Net::HTTPResponse
-  http_method :lock
-
-  ##
-  # :method: unlock
-  # :call-seq:
-  # unlock(path, query: {}, headers: {}, body: nil) {|response| ... } -> block return value
-  # unlock(path, query: {}, headers: {}, body: nil) -> Net::HTTPResponse
-  http_method :unlock
 
   private
 
