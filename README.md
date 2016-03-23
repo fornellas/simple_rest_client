@@ -23,3 +23,5 @@ Gem to aid construction of [REST](https://en.wikipedia.org/wiki/Representational
 * Do not use class level client configuration, instead, use instance level configuration, allowing connection to the same API but with different credentials for example.
 * Meaningful exceptions with useful informative messages to ease debugging.
   * Inform FQDN, ip address, port, HTTP methdod etc.
+* Test everything.
+* Document everything.
