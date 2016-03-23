@@ -27,18 +27,18 @@ require 'json'
 #     end
 #   end
 # You can define your own methods, regarding your own problem domain, to ease access to any resource in your API. Make use of any of the HTTP verb methods provided to easily interface with your API.
-#
-# For all HTTP verb methods, if no block is given, the default is to validate the response with DEFAULT_RESPONSE_VALIDATOR.
-#
-# TODO: String#force_encoding on Net::HTTPResponse#body and Net::HTTPResponse#read_body.
-#
-# TODO: Better exceptions (inform connection, request and response information)
-#
-# TODO: Logging support
-#
-# TODO: follow redirects.
-#
-# TODO: retries.
+# TODO:
+# * HTTP Status Code validation parameter.
+# * High level JSON methods
+# * hooks: pre/post requests
+# * Logging support through hooks
+# * Pagination aid support.
+# * String#force_encoding on Net::HTTPResponse#body and Net::HTTPResponse#read_body.
+# * Per request net_http_start_opt.
+# * Better exceptions (inform connection, request and response information)
+# * follow redirects.
+# * Builder pattern for #initialize
+# * retries.
 class SimpleRESTClient
 
   # Default value for #net_http_start_opt.
@@ -47,13 +47,6 @@ class SimpleRESTClient
     read_timeout: 30,
     ssl_timeout:  10,
   }.freeze
-
-  # Default validator used for any HTTP request. It will raise an exception unless the response is a Net::HTTPSuccess.
-  DEFAULT_RESPONSE_VALIDATOR = lambda do |response|
-    unless response.is_a? Net::HTTPSuccess
-      raise "HTTP request not successfull"
-    end
-  end.freeze
 
   # Hostname or IP address of the server.
   attr_reader :address
@@ -98,131 +91,67 @@ class SimpleRESTClient
     @net_http           = nil
   end
 
-
-  # :section: High level metdos
-
-  # Makes a request and return its parsed JSON body. Will raise an exception if either the request was not successfull, the response has no body or its Content-Type is not <tt>application/json</tt>.
-  # :call-seq:
-  # get_json(path, query: {}, headers: {}) -> Hash
-  def get_json *args
-    get(*args) do |response|
-      DEFAULT_RESPONSE_VALIDATOR.call(response)
-      unless response.class.const_get(:HAS_BODY)
-        raise "Response has no body"
-      end
-      unless response.content_type == 'application/json'
-        raise "Response Content-Type is not application/json"
-      end
-      JSON.parse(response.body)
-    end
-  end
-
-  def self.http_method_send_json name # :nodoc:
-    self.class_eval do
-      define_method(:"#{name}_json") do |path, query: {}, headers: {}, body:|
-        serialized_body = JSON.generate(body)
-        send(
-          name,
-          path,
-          query:    query,
-          headers: headers.merge(
-            'Content-Type' => "application/json;charset=#{serialized_body.encoding.to_s.downcase}",
-          ),
-          body: serialized_body,
-        )
-      end
-    end
-  end
-
-  ##
-  # :method:
-  # Makes a POST request. body will be serialized with JSON.generate, and Content-Type header will be set.
-  # :call-seq:
-  # post_json(path, query: {}, headers: {}, body:) -> Net::HTTPResponse
-  http_method_send_json :post
-
-  ##
-  # :method:
-  # Makes a PUT request. body will be serialized with JSON.generate, and Content-Type header will be set.
-  # :call-seq:
-  # put_json(path, query: {}, headers: {}, body:) -> Net::HTTPResponse
-  http_method_send_json :put
-
-  ##
-  # :method:
-  # Makes a PATCH request. body will be serialized with JSON.generate, and Content-Type header will be set.
-  # :call-seq:
-  # patch_json(path, query: {}, headers: {}, body:) -> Net::HTTPResponse
-  http_method_send_json :patch
-
-  # Define a instance method for given HTTP verb name.
-  def self.http_method name # :nodoc:
-    self.class_eval do
-      define_method(name) do |*args, &block|
-        net_http_request(name, *args, &block)
-      end
-    end
-  end
-
   # :section: RFC7231 Hypertext Transfer Protocol (HTTP/1.1): Semantics and Content
+
+  # Define a instance method for given HTTP request method.
+  def self.http_method http_method # :nodoc:
+    self.class_eval do
+      define_method(http_method) do |*args, &block|
+        net_http_request(http_method, *args, &block)
+      end
+    end
+  end
 
   ##
   # :method: get
-  # :call-seq:
-  # get(path, query: {}, headers: {}) {|response| ... } -> block return value
-  # get(path, query: {}, headers: {}) -> Net::HTTPResponse
   http_method :get
 
   ##
   # :method: head
-  # :call-seq:
-  # head(path, query: {}, headers: {}) {|response| ... } -> block return value
-  # head(path, query: {}, headers: {}) -> Net::HTTPResponse
   http_method :head
 
   ##
   # :method: post
-  # :call-seq:
-  # post(path, query: {}, headers: {}, body: nil) {|response| ... } -> block return value
-  # post(path, query: {}, headers: {}, body: nil) -> Net::HTTPResponse
   http_method :post
 
   ##
   # :method: put
-  # :call-seq:
-  # put(path, query: {}, headers: {}, body: nil) {|response| ... } -> block return value
-  # put(path, query: {}, headers: {}, body: nil) -> Net::HTTPResponse
   http_method :put
 
   ##
   # :method: delete
-  # :call-seq:
-  # delete(path, query: {}, headers: {}) {|response| ... } -> block return value
-  # delete(path, query: {}, headers: {}) -> Net::HTTPResponse
   http_method :delete
 
   ##
   # :method: options
-  # :call-seq:
-  # options(path, query: {}, headers: {}) {|response| ... } -> block return value
-  # options(path, query: {}, headers: {}) -> Net::HTTPResponse
   http_method :options
 
   ##
   # :method: trace
-  # :call-seq:
-  # trace(path, query: {}, headers: {}) {|response| ... } -> block return value
-  # trace(path, query: {}, headers: {}) -> Net::HTTPResponse
   http_method :trace
 
   # :section: RFC5789 PATCH Method for HTTP
 
   ##
   # :method: patch
-  # :call-seq:
-  # patch(path, query: {}, headers: {}, body: nil) {|response| ... } -> block return value
-  # patch(path, query: {}, headers: {}, body: nil) -> Net::HTTPResponse
   http_method :patch
+
+  # :section: Generic requests
+
+  # Performs a generic HTTP method request.
+  # Body argument must only be used with methods that support sending a body.
+  # If method http_method does not support a bo # request(http_method, path, query: {}, headers: {}, body: nil) {|response| ... } -> block return value
+  # request(http_method, path, query: {}, headers: {}, body: nil) -> Net::HTTPResponse
+  def request http_method, path, query: {}, headers: {}, body: nil
+    uri = build_uri(path, query)
+    request = build_request(http_method, uri, headers, body)
+    response = net_http.request(request)
+    if block_given?
+      return (yield response)
+    else
+      return response
+    end
+  end
 
   private
 
@@ -250,8 +179,12 @@ class SimpleRESTClient
     ( net_http_start_opt[:use_ssl] ? URI::HTTPS : URI::HTTP ).build(build_args)
   end
 
-  def build_request method, uri, headers, body
-    request_class = Net::HTTP.const_get(method.downcase.capitalize)
+  def build_request http_method, uri, headers, body
+    begin
+      request_class = Net::HTTP.const_get(http_method.downcase.capitalize)
+    rescue NameError
+      raise "Unknown HTTP method named #{http_method}!"
+    end
     if !request_class.const_get(:REQUEST_HAS_BODY) && body
       raise ArgumentError.new("unknown keyword: body")
     end
@@ -269,24 +202,6 @@ class SimpleRESTClient
       .merge(headers)
       .map{|k,v| [k.to_s, v.to_s]}
       .to_h
-  end
-
-  def net_http_request method, path, query: {}, headers: {}, body: nil
-    uri = build_uri(path, query)
-    request = build_request(method, uri, headers, body)
-    # puts "#{method.to_s.upcase} #{uri}"
-    # request.each do |key, value|
-    #   puts "#{key}: #{value}"
-    # end
-    # puts
-    # puts request.body
-    response = net_http.request(request)
-    if block_given?
-      return (yield response)
-    else
-      DEFAULT_RESPONSE_VALIDATOR.call(response)
-      return response
-    end
   end
 
 end
