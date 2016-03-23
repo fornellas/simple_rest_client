@@ -1,4 +1,4 @@
-# Simple REST client
+# Simple REST Client
 
 WARNING: Currently in prototype stage!
 
