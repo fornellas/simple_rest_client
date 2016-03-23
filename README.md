@@ -21,3 +21,4 @@ Gem to aid construction of [REST](https://en.wikipedia.org/wiki/Representational
   * No fancy dependencies, use Ruby's standard libraries.
   * Respect [Semantic Versioning](http://semver.org/), with a twist: when there is an incompatible API change, create a Gem with a new name, to allow one to use in the same project, both previous and a newer version.
 * Do not use class level client configuration, instead, use instance level configuration, allowing connection to the same API but with different credentials for example.
+* Meaningful exceptions with useful informative messages to ease debugging.
