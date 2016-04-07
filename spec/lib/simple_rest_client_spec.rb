@@ -120,11 +120,37 @@ RSpec.describe SimpleRESTClient do
     end
   end
   context 'base_headers' do
+    let(:default_headers) do
+      Net::HTTP::Get.new('/').to_hash
+    end
     context 'unset' do
-      it 'does not send extra headers'
+      it 'does not send extra headers' do
+        request = stub_request(:get, "#{address}#{path}")
+          .with(headers: default_headers)
+        subject.send(:get, path)
+        expect(request).to have_been_requested
+      end
     end
     context 'set' do
-      it 'sets base_headers'
+      subject do
+        described_class.new(address: address, base_headers: base_headers)
+      end
+      context 'conflicting parameters' do
+        it 'raises ArgumentError' do
+          expect do
+            subject.send(:get, path, headers: base_headers)
+          end.to raise_error(
+            ArgumentError,
+            /passed headers conflict with base_headers/i
+          )
+        end
+      end
+      it 'sets base_headers' do
+        request = stub_request(:get, "#{address}#{path}")
+        .with(headers: default_headers.merge(headers))
+        subject.send(:get, path, headers: headers)
+        expect(request).to have_been_requested
+      end
     end
   end
   context '#username and #password' do

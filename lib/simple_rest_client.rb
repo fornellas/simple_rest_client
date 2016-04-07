@@ -205,6 +205,10 @@ class SimpleRESTClient
   end
 
   def build_headers headers
+    conflicting_header_keys = base_headers.keys & headers.keys
+    unless conflicting_header_keys.empty?
+      raise ArgumentError, "Passed headers conflict with base_headers: #{conflicting_header_keys.join(', ')}."
+    end
     base_headers
       .merge(headers)
       .map{|k,v| [k.to_s, v.to_s]}
