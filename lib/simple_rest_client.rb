@@ -167,14 +167,17 @@ class SimpleRESTClient
   end
 
   def build_uri path='/', query={}
+    # Base
     build_args = {
       host: address,
       port: port,
       path: "#{base_path}/#{path}".gsub(/\/+/, '/'),
     }
+    # Basic Auth
     build_args.merge!(
       userinfo: "#{ERB::Util.url_encode(username)}:#{ERB::Util.url_encode(password.to_s)}",
     ) if username
+    # Query
     conflicting_query_keys = (base_query.keys & query.keys)
     unless conflicting_query_keys.empty?
       raise ArgumentError, "Passed query parameters conflict with base_query parameters: #{conflicting_query_keys.join(', ')}."
@@ -183,6 +186,7 @@ class SimpleRESTClient
     build_args.merge!(
       query: URI.encode_www_form(merged_query),
     ) unless merged_query.empty?
+    # Build
     ( net_http_start_opt[:use_ssl] ? URI::HTTPS : URI::HTTP ).build(build_args)
   end
 
@@ -190,7 +194,7 @@ class SimpleRESTClient
     begin
       request_class = Net::HTTP.const_get(http_method.downcase.capitalize)
     rescue NameError
-      raise "Unknown HTTP method named #{http_method}!"
+      raise ArgumentError, "Unknown HTTP method named #{http_method}!"
     end
     if !request_class.const_get(:REQUEST_HAS_BODY) && body
       raise ArgumentError.new("unknown keyword: body")
