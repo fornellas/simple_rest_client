@@ -98,7 +98,7 @@ class SimpleRESTClient
   def self.http_method http_method # :nodoc:
     self.class_eval do
       define_method(http_method) do |*args, &block|
-        net_http_request(http_method, *args, &block)
+        request(http_method, *args, &block)
       end
     end
   end
