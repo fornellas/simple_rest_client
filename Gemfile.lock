@@ -1,0 +1,58 @@
+PATH
+  remote: .
+  specs:
+    simple_rest_client (0.0.0)
+
+GEM
+  remote: https://rubygems.org/
+  specs:
+    addressable (2.4.0)
+    agita (0.4.0)
+    crack (0.4.3)
+      safe_yaml (~> 1.0.0)
+    diff-lcs (1.2.5)
+    docile (1.1.5)
+    gem_polisher (0.4.10)
+      agita (~> 0.1)
+      semantic (~> 1.4, >= 1.4.1)
+    hashdiff (0.3.0)
+    json (1.8.3)
+    rake (10.5.0)
+    rspec (3.4.0)
+      rspec-core (~> 3.4.0)
+      rspec-expectations (~> 3.4.0)
+      rspec-mocks (~> 3.4.0)
+    rspec-core (3.4.4)
+      rspec-support (~> 3.4.0)
+    rspec-expectations (3.4.0)
+      diff-lcs (>= 1.2.0, < 2.0)
+      rspec-support (~> 3.4.0)
+    rspec-mocks (3.4.1)
+      diff-lcs (>= 1.2.0, < 2.0)
+      rspec-support (~> 3.4.0)
+    rspec-support (3.4.1)
+    safe_yaml (1.0.4)
+    semantic (1.4.1)
+    simplecov (0.11.2)
+      docile (~> 1.1.0)
+      json (~> 1.8)
+      simplecov-html (~> 0.10.0)
+    simplecov-html (0.10.0)
+    webmock (1.24.2)
+      addressable (>= 2.3.6)
+      crack (>= 0.3.2)
+      hashdiff
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  gem_polisher (~> 0.4, >= 0.4.10)
+  rake (~> 10.4)
+  rspec (~> 3.4)
+  simple_rest_client!
+  simplecov (~> 0.11, >= 0.11.2)
+  webmock (~> 1.24, >= 1.24.2)
+
+BUNDLED WITH
+   1.11.2
