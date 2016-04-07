@@ -175,6 +175,10 @@ class SimpleRESTClient
     build_args.merge!(
       userinfo: "#{ERB::Util.url_encode(username)}:#{ERB::Util.url_encode(password.to_s)}",
     ) if username
+    conflicting_query_keys = (base_query.keys & query.keys)
+    unless conflicting_query_keys.empty?
+      raise ArgumentError, "Passed query parameters conflict with base_query parameters: #{conflicting_query_keys.join(', ')}."
+    end
     merged_query = base_query.merge(query)
     build_args.merge!(
       query: URI.encode_www_form(merged_query),

@@ -2,16 +2,18 @@ require 'simple_rest_client'
 
 RSpec.describe SimpleRESTClient do
   let(:address) { 'example.com' }
+  let(:path) { '/test_path' }
+  let(:base_path) { '/base_path' }
+  let(:query) { {query_parameter: 'query_value'} }
+  let(:base_query) { {base_query_parameter: 'base_query_value'} }
+  let(:headers) { {header_name: 'header_value'} }
+  let(:base_headers) { {base_header_name: 'base_header_value'} }
+  let(:body) { 'request_body' }
   subject { described_class.new(address: address) }
   context '#initialize' do
     context '#port' do
       context 'defaults' do
         context 'HTTP' do
-          subject do
-            described_class.new(
-            address: address,
-            )
-          end
           it 'is set to 80' do
             expect(subject.port).to eq(80)
           end
@@ -42,10 +44,7 @@ RSpec.describe SimpleRESTClient do
           let(:port) { 443 }
           context ':use_ssl not specified' do
             subject do
-              described_class.new(
-                address: address,
-                port: port
-              )
+              described_class.new(address: address, port: port)
             end
             it 'sets :use_ssl' do
               expect(subject.net_http_start_opt[:use_ssl]).to eq(true)
@@ -72,21 +71,52 @@ RSpec.describe SimpleRESTClient do
   end
   context '#base_path' do
     context 'unset' do
-      it 'does requests without base_path prefix'
+      it 'does requests without base_path prefix' do
+        request = stub_request(:get, "#{address}#{path}")
+        subject.send(:get, path)
+        expect(request).to have_been_requested
+      end
     end
     context 'set' do
-      it 'prefix requests with base_path'
+      subject do
+        described_class.new(address: address, base_path: base_path)
+      end
+      it 'prefix requests with base_path' do
+        request = stub_request(:get, "#{address}#{base_path}#{path}")
+        subject.send(:get, path)
+        expect(request).to have_been_requested
+      end
     end
   end
   context '#base_query' do
     context 'unset' do
-      it 'does not change query'
+      it 'does not change query' do
+        request = stub_request(:get, "#{address}#{path}")
+          .with(query: {})
+        subject.send(:get, path)
+        expect(request).to have_been_requested
+      end
     end
     context 'set' do
-      context 'conflicting parameters' do
-        it 'raises ArgumentError'
+      subject do
+        described_class.new(address: address, base_query: base_query)
       end
-      it 'sets base_query parameters'
+      context 'conflicting parameters' do
+        it 'raises ArgumentError' do
+          expect do
+            subject.send(:get, path, query: base_query)
+          end.to raise_error(
+            ArgumentError,
+            /passed query parameters conflict with base_query parameters/i
+          )
+        end
+      end
+      it 'sets base_query parameters' do
+        request = stub_request(:get, "#{address}#{path}")
+          .with(query: base_query)
+        subject.send(:get, path)
+        expect(request).to have_been_requested
+      end
     end
   end
   context 'base_headers' do
@@ -106,16 +136,7 @@ RSpec.describe SimpleRESTClient do
     end
   end
   context 'HTTP Methods' do
-    let(:path) { '/test_path' }
-    let(:query) { {query_parameter: 'query_value'} }
-    let(:headers) { {header_name: 'header_value'} }
-    let(:request_parameters) do
-      {
-        query: query,
-        headers: headers
-      }
-    end
-    let(:body) { 'request_body' }
+    let(:request_parameters) { {query: query, headers: headers} }
     def request_has_body? http_method
       Net::HTTP.const_get(http_method.downcase.capitalize)
         .const_get(:REQUEST_HAS_BODY)
