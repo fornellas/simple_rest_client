@@ -195,6 +195,11 @@ RSpec.describe SimpleRESTClient do
     end
   end
   context '#request' do
-    it 'can perform generic requests'
+    let(:http_method) { :mkcol }
+    it 'can perform generic requests' do
+      request = stub_request(http_method, "#{address}#{path}")
+      subject.request(http_method, path)
+      expect(request).to have_been_requested
+    end
   end
 end
