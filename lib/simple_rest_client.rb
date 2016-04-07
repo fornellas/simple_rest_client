@@ -29,12 +29,12 @@ require 'json'
 # You can define your own methods, regarding your own problem domain, to ease access to any resource in your API. Make use of any of the HTTP verb methods provided to easily interface with your API.
 # TODO:
 # * HTTP Status Code validation parameter.
-# * High level JSON methods
+# * Per request timeout
 # * hooks: pre/post requests
+# * String#force_encoding on Net::HTTPResponse#body and Net::HTTPResponse#read_body.
+# * High level JSON methods
 # * Logging support through hooks
 # * Pagination aid support.
-# * String#force_encoding on Net::HTTPResponse#body and Net::HTTPResponse#read_body.
-# * Per request net_http_start_opt.
 # * Better exceptions (inform connection, request and response information)
 # * follow redirects.
 # * Builder pattern for #initialize
@@ -50,7 +50,7 @@ class SimpleRESTClient
 
   # Hostname or IP address of the server.
   attr_reader :address
-  # Port of the server. Defaults to 80 if HTTP and 443 if HTTPS.
+  # Port of the server. Defaults to 80 if HTTP and 443 if HTTPS (depends on <tt>net_http_start_opt[:use_ssl] == true</tt>).
   attr_reader :port
   # Base path to prefix all requests with. Must be URL encoded when needed.
   attr_reader :base_path
@@ -58,21 +58,21 @@ class SimpleRESTClient
   attr_reader :base_query
   # Base headers to be used in all requests. Must be provided as a Hash.
   attr_reader :base_headers
-  # Hash opt to be used with with Net::HTTP.start.
+  # Hash opt to be used with with Net::HTTP.start. Defaults to DEFAULT_NET_HTTP_START_OPT. If #port is 443 and :use_ssl is not specified, it will be set to true.
   attr_reader :net_http_start_opt
   # Username for basic auth.
   attr_reader :username
   # Password for basic auth.
   attr_reader :password
 
-  # Creates a new HTTP client. Please refer to each attribute's documentation for details.
+  # Creates a new HTTP client. Please refer to each attribute's documentation for details and default values.
   def initialize(
     address:            ,
     port:               nil,
     base_path:          nil,
     base_query:         {},
     base_headers:       {},
-    net_http_start_opt: DEFAULT_NET_HTTP_START_OPT,
+    net_http_start_opt: DEFAULT_NET_HTTP_START_OPT.dup,
     username:           nil,
     password:           nil
     )
@@ -86,12 +86,13 @@ class SimpleRESTClient
     @base_query         = base_query
     @base_headers       = base_headers
     @net_http_start_opt = net_http_start_opt
+    unless @net_http_start_opt.has_key?(:use_ssl)
+      @net_http_start_opt[:use_ssl] = true if port == 443
+    end
     @username           = username
     @password           = password
     @net_http           = nil
   end
-
-  # :section: RFC7231 Hypertext Transfer Protocol (HTTP/1.1): Semantics and Content
 
   # Define a instance method for given HTTP request method.
   def self.http_method http_method # :nodoc:
@@ -101,6 +102,8 @@ class SimpleRESTClient
       end
     end
   end
+
+  # :section: RFC7231 Hypertext Transfer Protocol (HTTP/1.1): Semantics and Content
 
   ##
   # :method: get
@@ -140,7 +143,7 @@ class SimpleRESTClient
 
   # Performs a generic HTTP method request.
   # Body argument must only be used with methods that support sending a body.
-  # If method http_method does not support a bo # request(http_method, path, query: {}, headers: {}, body: nil) {|response| ... } -> block return value
+  # request(http_method, path, query: {}, headers: {}, body: nil) {|response| ... } -> block return value
   # request(http_method, path, query: {}, headers: {}, body: nil) -> Net::HTTPResponse
   def request http_method, path, query: {}, headers: {}, body: nil
     uri = build_uri(path, query)
