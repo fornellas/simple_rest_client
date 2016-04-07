@@ -11,7 +11,7 @@ require 'json'
 #     def initialize
 #       super(address: 'api.example.com')
 #     end
-#     def resource_list query
+#     def resource_list filter
 #       get('/resource_list', query: {filter: filter}).body
 #     end
 #   end
@@ -22,7 +22,7 @@ require 'json'
 #     def initialize
 #       @simple_rest_client = SimpleRESTClient.new(address: 'api.example.com')
 #     end
-#     def resource_list query
+#     def resource_list filter
 #       @simple_rest_client.get('/resource_list', query: {filter: filter}).body
 #     end
 #   end
@@ -31,7 +31,7 @@ require 'json'
 # * HTTP Status Code validation parameter.
 # * Per request timeout
 # * hooks: pre/post requests
-# * String#force_encoding on Net::HTTPResponse#body and Net::HTTPResponse#read_body.
+# * String#force_encoding on Net::HTTPResponse#body and Net::HTTPResponse#read_body. https://bugs.ruby-lang.org/issues/2567
 # * High level JSON methods
 # * Logging support through hooks
 # * Pagination aid support.
