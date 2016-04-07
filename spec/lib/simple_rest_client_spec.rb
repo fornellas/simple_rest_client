@@ -9,6 +9,8 @@ RSpec.describe SimpleRESTClient do
   let(:headers) { {header_name: 'header_value'} }
   let(:base_headers) { {base_header_name: 'base_header_value'} }
   let(:body) { 'request_body' }
+  let(:username) { 'username' }
+  let(:password) { 'password' }
   subject { described_class.new(address: address) }
   context '#initialize' do
     context '#port' do
@@ -147,7 +149,7 @@ RSpec.describe SimpleRESTClient do
       end
       it 'sets base_headers' do
         request = stub_request(:get, "#{address}#{path}")
-        .with(headers: default_headers.merge(headers))
+          .with(headers: default_headers.merge(headers))
         subject.send(:get, path, headers: headers)
         expect(request).to have_been_requested
       end
@@ -155,10 +157,25 @@ RSpec.describe SimpleRESTClient do
   end
   context '#username and #password' do
     context 'unset' do
-      it 'does not use basic auth'
+      it 'does not use basic auth' do
+        request = stub_request(:get, "#{address}#{path}")
+        subject.send(:get, path, headers: headers)
+        expect(request).to have_been_requested
+      end
     end
     context 'set' do
-      it 'uses basic auth'
+      subject do
+        described_class.new(
+          address: address,
+          username: username,
+          password: password
+        )
+      end
+      it 'uses basic auth' do
+        request = stub_request(:get, "#{username}:#{password}@#{address}#{path}")
+        subject.send(:get, path, headers: headers)
+        expect(request).to have_been_requested
+      end
     end
   end
   context 'HTTP Methods' do
