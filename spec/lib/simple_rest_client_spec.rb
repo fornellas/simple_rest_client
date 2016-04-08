@@ -189,6 +189,10 @@ RSpec.describe SimpleRESTClient do
         request_parameters.merge!(body: body) if request_has_body?(http_method)
         request = stub_request(http_method, "#{address}#{path}")
           .with(request_parameters)
+        expect(subject)
+          .to receive(:request)
+          .with(http_method, path, request_parameters)
+          .and_call_original
         subject.send(http_method, path, request_parameters)
         expect(request).to have_been_requested
       end

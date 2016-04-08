@@ -94,6 +94,28 @@ class SimpleRESTClient
     @net_http           = nil
   end
 
+
+  # :section: Generic requests
+
+  # Performs a generic HTTP method request.
+  # http_method:: HTTP method to invoke.
+  # path:: URI path.
+  # query:: URI query, in form of a Hash.
+  # headers:: Request headers in form of a Hash. Must not conflict with #base_headers.
+  # body / body_stream:: For requests tha supporting sending a body, use one of the two to define a payload.
+  # :call-seq: request(http_method, path, query: {}, headers: {}, body: nil, body_stream: nil) {|response| ... } -> block return value
+  # :call-seq: request(http_method, path, query: {}, headers: {}, body: nil, body_stream: nil) -> Net::HTTPResponse
+  def request http_method, path, query: {}, headers: {}, body: nil
+    uri = build_uri(path, query)
+    request = build_request(http_method, uri, headers, body)
+    response = net_http.request(request)
+    if block_given?
+      return (yield response)
+    else
+      return response
+    end
+  end
+
   # Define a instance method for given HTTP request method.
   def self.http_method http_method # :nodoc:
     self.class_eval do
@@ -106,55 +128,62 @@ class SimpleRESTClient
   # :section: RFC7231 Hypertext Transfer Protocol (HTTP/1.1): Semantics and Content
 
   ##
+  # Perform a GET request.
+  # It is a wrapper around #request method, and accepts the same arguments.
   # :method: get
+  # :call-seq: get(*request_args, &block)
   http_method :get
 
   ##
+  # Perform a HEAD request.
+  # It is a wrapper around #request method, and accepts the same arguments.
   # :method: head
+  # :call-seq: head(*request_args, &block)
   http_method :head
 
   ##
+  # Perform a POST request.
+  # It is a wrapper around #request method, and accepts the same arguments.
   # :method: post
+  # :call-seq: post(*request_args, &block)
   http_method :post
 
   ##
+  # Perform a PUT request.
+  # It is a wrapper around #request method, and accepts the same arguments.
   # :method: put
+  # :call-seq: put(*request_args, &block)
   http_method :put
 
   ##
+  # Perform a DELETE request.
+  # It is a wrapper around #request method, and accepts the same arguments.
   # :method: delete
+  # :call-seq: delete(*request_args, &block)
   http_method :delete
 
   ##
+  # Perform a OPTIONS request.
+  # It is a wrapper around #request method, and accepts the same arguments.
   # :method: options
+  # :call-seq: options(*request_args, &block)
   http_method :options
 
   ##
+  # Perform a TRACE request.
+  # It is a wrapper around #request method, and accepts the same arguments.
   # :method: trace
+  # :call-seq: trace(*request_args, &block)
   http_method :trace
 
   # :section: RFC5789 PATCH Method for HTTP
 
   ##
+  # Perform a PATCH request.
+  # It is a wrapper around #request method, and accepts the same arguments.
   # :method: patch
+  # :call-seq: patch(*request_args, &block)
   http_method :patch
-
-  # :section: Generic requests
-
-  # Performs a generic HTTP method request.
-  # Body argument must only be used with methods that support sending a body.
-  # request(http_method, path, query: {}, headers: {}, body: nil) {|response| ... } -> block return value
-  # request(http_method, path, query: {}, headers: {}, body: nil) -> Net::HTTPResponse
-  def request http_method, path, query: {}, headers: {}, body: nil
-    uri = build_uri(path, query)
-    request = build_request(http_method, uri, headers, body)
-    response = net_http.request(request)
-    if block_given?
-      return (yield response)
-    else
-      return response
-    end
-  end
 
   private
 
