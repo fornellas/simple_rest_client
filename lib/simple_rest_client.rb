@@ -105,9 +105,9 @@ class SimpleRESTClient
   # body / body_stream:: For requests tha supporting sending a body, use one of the two to define a payload.
   # :call-seq: request(http_method, path, query: {}, headers: {}, body: nil, body_stream: nil) {|response| ... } -> block return value
   # :call-seq: request(http_method, path, query: {}, headers: {}, body: nil, body_stream: nil) -> Net::HTTPResponse
-  def request http_method, path, query: {}, headers: {}, body: nil
+  def request http_method, path, query: {}, headers: {}, body: nil, body_stream: nil
     uri = build_uri(path, query)
-    request = build_request(http_method, uri, headers, body)
+    request = build_request(http_method, uri, headers, body, body_stream)
     response = net_http.request(request)
     if block_given?
       return (yield response)
@@ -219,7 +219,7 @@ class SimpleRESTClient
     ( net_http_start_opt[:use_ssl] ? URI::HTTPS : URI::HTTP ).build(build_args)
   end
 
-  def build_request http_method, uri, headers, body
+  def build_request http_method, uri, headers, body, body_stream
     begin
       request_class = Net::HTTP.const_get(http_method.downcase.capitalize)
     rescue NameError
@@ -228,12 +228,16 @@ class SimpleRESTClient
     if !request_class.const_get(:REQUEST_HAS_BODY) && body
       raise ArgumentError.new("unknown keyword: body")
     end
+    if !request_class.const_get(:REQUEST_HAS_BODY) && body_stream
+      raise ArgumentError.new("unknown keyword: body_stream")
+    end
     request = request_class.new(
       uri,
       build_headers(headers)
     )
     request.basic_auth(username, password.to_s) if username
     request.body = body if body
+    request.body_stream = body_stream if body_stream
     request
   end
 

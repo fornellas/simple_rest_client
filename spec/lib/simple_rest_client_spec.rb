@@ -1,4 +1,5 @@
 require 'simple_rest_client'
+require 'stringio'
 
 RSpec.describe SimpleRESTClient do
   let(:address) { 'example.com' }
@@ -9,6 +10,10 @@ RSpec.describe SimpleRESTClient do
   let(:headers) { {header_name: 'header_value'} }
   let(:base_headers) { {base_header_name: 'base_header_value'} }
   let(:body) { 'request_body' }
+  let(:body_stream_text) { "body\n" * 10 }
+  def body_stream text
+    StringIO.new(text, 'r')
+  end
   let(:username) { 'username' }
   let(:password) { 'password' }
   subject { described_class.new(address: address) }
@@ -180,21 +185,78 @@ RSpec.describe SimpleRESTClient do
   end
   context 'HTTP Methods' do
     let(:request_parameters) { {query: query, headers: headers} }
-    def request_has_body? http_method
-      Net::HTTP.const_get(http_method.downcase.capitalize)
+    [
+      :get,
+      :head,
+      :post,
+      :put,
+      :delete,
+      :options,
+      :trace,
+      :patch
+    ].each do |http_method|
+      request_has_body = Net::HTTP.const_get(http_method.downcase.capitalize)
         .const_get(:REQUEST_HAS_BODY)
-    end
-    [:get, :head, :post, :put, :delete, :options, :trace, :patch].each do |http_method|
-      it "can perform #{http_method.upcase} requests" do
-        request_parameters.merge!(body: body) if request_has_body?(http_method)
-        request = stub_request(http_method, "#{address}#{path}")
-          .with(request_parameters)
-        expect(subject)
-          .to receive(:request)
-          .with(http_method, path, request_parameters)
-          .and_call_original
-        subject.send(http_method, path, request_parameters)
-        expect(request).to have_been_requested
+      if request_has_body
+        context "#{http_method.upcase}" do
+          context 'static body' do
+            it "can perform #{http_method.upcase} requests" do
+              request_parameters.merge!(body: body)
+              request = stub_request(http_method, "#{address}#{path}")
+                .with(request_parameters)
+              expect(subject)
+                .to receive(:request)
+                .with(http_method, path, request_parameters)
+                .and_call_original
+              subject.send(http_method, path, request_parameters)
+              expect(request).to have_been_requested
+            end
+          end
+          context 'streaming body' do
+            it "can perform #{http_method.upcase} requests" do
+              request = stub_request(http_method, "#{address}#{path}")
+                .with(request_parameters.merge(body: body_stream_text))
+              body_stream_arg = body_stream(body_stream_text)
+              expect(subject)
+                .to receive(:request)
+                .with(
+                  http_method,
+                  path,
+                  request_parameters.merge(body_stream: body_stream_arg)
+                )
+                .and_call_original
+              subject.send(
+                http_method,
+                path,
+                request_parameters.merge(body_stream: body_stream_arg)
+              )
+              expect(request).to have_been_requested
+            end
+          end
+          context 'no body' do
+            it "can perform #{http_method.upcase} requests" do
+              request = stub_request(http_method, "#{address}#{path}")
+              .with(request_parameters)
+              expect(subject)
+              .to receive(:request)
+              .with(http_method, path, request_parameters)
+              .and_call_original
+              subject.send(http_method, path, request_parameters)
+              expect(request).to have_been_requested
+            end
+          end
+        end
+      else
+        it "can perform #{http_method.upcase} requests" do
+          request = stub_request(http_method, "#{address}#{path}")
+            .with(request_parameters)
+          expect(subject)
+            .to receive(:request)
+            .with(http_method, path, request_parameters)
+            .and_call_original
+          subject.send(http_method, path, request_parameters)
+          expect(request).to have_been_requested
+        end
       end
     end
   end
