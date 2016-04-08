@@ -267,5 +267,100 @@ RSpec.describe SimpleRESTClient do
       subject.request(http_method, path)
       expect(request).to have_been_requested
     end
+    fcontext 'expected_status_code' do
+      shared_examples :expected_status_code do |expected_status_code:, unexpected_status_code:, real_status_code:|
+        context "expected #{expected_status_code}, got #{real_status_code}" do
+          it 'does not raise' do
+            request = stub_request(:get, "#{address}#{path}")
+              .to_return(status: real_status_code)
+            expect do
+              subject.get(path, expected_status_code: expected_status_code)
+            end.not_to raise_error
+            expect(request).to have_been_requested
+          end
+        end
+        context "expected #{unexpected_status_code}, got #{real_status_code}" do
+          it 'raises' do
+            request = stub_request(:get, "#{address}#{path}")
+            .to_return(status: real_status_code)
+            expect do
+              subject.get(path, expected_status_code: unexpected_status_code)
+            end.to raise_error(described_class.const_get(:UnexpectedStatusCode))
+            expect(request).to have_been_requested
+          end
+        end
+      end
+      context 'not specified' do
+        it 'defaults to :successful' do
+          request = stub_request(:get, "#{address}#{path}")
+            .to_return(status: 202)
+          expect do
+            subject.get(path)
+          end.not_to raise_error
+          expect(request).to have_been_requested
+        end
+        it 'raises for non :successful' do
+          request = stub_request(:get, "#{address}#{path}")
+          .to_return(status: 300)
+          expect do
+            subject.get(path)
+          end.to raise_error(described_class.const_get(:UnexpectedStatusCode))
+          expect(request).to have_been_requested
+        end
+      end
+      context 'specified' do
+        context 'as number' do
+          include_examples(
+            :expected_status_code,
+            expected_status_code:   200,
+            unexpected_status_code: 202,
+            real_status_code:       200
+          )
+        end
+        context 'as text' do
+          include_examples(
+            :expected_status_code,
+            expected_status_code:   "200",
+            unexpected_status_code: 202,
+            real_status_code:       200
+          )
+        end
+        context 'as array' do
+          include_examples(
+            :expected_status_code,
+            expected_status_code:   [200, 202],
+            unexpected_status_code: 201,
+            real_status_code:       200
+          )
+        end
+        [
+          [:informational, 201, 100],
+          [:successful,    301, 202],
+          [:redirection,   201, 301],
+          [:client_error,  201, 400],
+          [:server_error,  201, 503],
+        ].each do |args|
+          expected_status_code, unexpected_status_code, real_status_code = *args
+          context ":#{expected_status_code}" do
+            include_examples(
+              :expected_status_code,
+              expected_status_code:   expected_status_code,
+              unexpected_status_code: unexpected_status_code,
+              real_status_code:       real_status_code
+            )
+          end
+        end
+        context 'nil' do
+          it 'ignores status code' do
+            request = stub_request(:get, "#{address}#{path}")
+              .to_return(status: 500)
+            expect do
+              subject.get(path, expected_status_code: nil)
+            end.not_to raise_error
+            expect(request).to have_been_requested
+          end
+        end
+      end
+    end
   end
 end

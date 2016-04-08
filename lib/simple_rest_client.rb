@@ -27,18 +27,6 @@ require 'json'
 #     end
 #   end
 # You can define your own methods, regarding your own problem domain, to ease access to any resource in your API. Make use of any of the HTTP verb methods provided to easily interface with your API.
-# TODO:
-# * HTTP Status Code validation parameter.
-# * Per request timeout
-# * hooks: pre/post requests
-# * String#force_encoding on Net::HTTPResponse#body and Net::HTTPResponse#read_body. https://bugs.ruby-lang.org/issues/2567
-# * High level JSON methods
-# * Logging support through hooks
-# * Pagination aid support.
-# * Better exceptions (inform connection, request and response information)
-# * follow redirects.
-# * Builder pattern for #initialize
-# * retries.
 class SimpleRESTClient
 
   # Default value for #net_http_start_opt.
@@ -103,12 +91,15 @@ class SimpleRESTClient
   # query:: URI query, in form of a Hash.
   # headers:: Request headers in form of a Hash. Must not conflict with #base_headers.
   # body / body_stream:: For requests tha supporting sending a body, use one of the two to define a payload.
-  # :call-seq: request(http_method, path, query: {}, headers: {}, body: nil, body_stream: nil) {|response| ... } -> block return value
-  # :call-seq: request(http_method, path, query: {}, headers: {}, body: nil, body_stream: nil) -> Net::HTTPResponse
-  def request http_method, path, query: {}, headers: {}, body: nil, body_stream: nil
+  # expected_status_code:: Validate response's HTTP status-code. Can be given as a code number (<tt>200</tt> or <tt>"200"</tt>), Array of codes (<tt>[200, 201]</tt>), Range (<tt>(200..202)</tt>) or one of <tt>:informational</tt>, <tt>:successful</tt>, <tt>:redirection</tt>, <tt>:client_error</tt> or <tt>:server_error</tt>. To disable status code validation, set to <tt>nil</tt>.
+  # :call-seq:
+  # request(http_method, path, query: {}, headers: {}, body: nil, body_stream: nil, expected_status_code: :successful) {|http_response| ... } -> (block return value)
+  # request(http_method, path, query: {}, headers: {}, body: nil, body_stream: nil, expected_status_code: :successful) -> Net::HTTPResponse
+  def request http_method, path, query: {}, headers: {}, body: nil, body_stream: nil, expected_status_code: :successful
     uri = build_uri(path, query)
     request = build_request(http_method, uri, headers, body, body_stream)
     response = net_http.request(request)
+    validate_status_code(response, expected_status_code)
     if block_given?
       return (yield response)
     else
@@ -185,6 +176,18 @@ class SimpleRESTClient
   # :call-seq: patch(*request_args, &block)
   http_method :patch
 
+  # Raised when an unexpected HTTP status code was returned.
+  class UnexpectedStatusCode < RuntimeError
+    attr_reader :response, :expected_status_code
+    def initialize expected_status_code, response
+      @expected_status_code = expected_status_code
+      @response             = response
+    end
+    def to_s
+      "Expected HTTP status code to be #{expected_status_code}, but got #{response.code}."
+    end
+  end
+
   private
 
   # Returns a cached instance of Net::HTTP.
@@ -250,6 +253,35 @@ class SimpleRESTClient
       .merge(headers)
       .map{|k,v| [k.to_s, v.to_s]}
       .to_h
+  end
+
+  def validate_status_code response, expected_status_code
+    return unless expected_status_code
+    case expected_status_code
+    when Array
+      expected_status_code.map!{|code| Integer(code)}
+    when Symbol
+      expected_status_code =case expected_status_code
+      when :informational
+        (100...200)
+      when :successful
+        (200...300)
+      when :redirection
+        (300...400)
+      when :client_error
+        (400...500)
+      when :server_error
+        (500...600)
+      else
+        raise ArgumentError.new("Invalid expected_status_code: #{expected_status_code.inspect}.")
+      end
+    when Range
+    else
+      expected_status_code = [Integer(expected_status_code)]
+    end
+    unless expected_status_code.include?(Integer(response.code))
+      raise UnexpectedStatusCode.new(expected_status_code, response)
+    end
   end
 
 end
