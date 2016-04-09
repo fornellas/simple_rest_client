@@ -36,6 +36,9 @@ class SimpleRESTClient
     ssl_timeout:  10,
   }.freeze
 
+  # Default value for #default_expected_status_code
+  DEFAULT_EXPECTED_STATUS_CODE = Hash.new(:successful).freeze
+
   # Hostname or IP address of the server.
   attr_reader :address
   # Port of the server. Defaults to 80 if HTTP and 443 if HTTPS (depends on <tt>net_http_start_opt[:use_ssl] == true</tt>).
@@ -52,34 +55,38 @@ class SimpleRESTClient
   attr_reader :username
   # Password for basic auth.
   attr_reader :password
+  # Hash with default values for #request. Keys are Symbols to HTTP methods (eg: <tt>:get</tt>).
+  attr_reader :default_expected_status_code
 
   # Creates a new HTTP client. Please refer to each attribute's documentation for details and default values.
   def initialize(
-    address:            ,
-    port:               nil,
-    base_path:          nil,
-    base_query:         {},
-    base_headers:       {},
-    net_http_start_opt: DEFAULT_NET_HTTP_START_OPT.dup,
-    username:           nil,
-    password:           nil
+    address:                      ,
+    port:                         nil,
+    base_path:                    nil,
+    base_query:                   {},
+    base_headers:                 {},
+    net_http_start_opt:           DEFAULT_NET_HTTP_START_OPT.dup,
+    username:                     nil,
+    password:                     nil,
+    default_expected_status_code: DEFAULT_EXPECTED_STATUS_CODE.dup
     )
-    @address            = address
-    @port               = if port
-                          port
-                        else
-                          net_http_start_opt[:use_ssl] ? 443 : 80
-                        end
-    @base_path          = base_path
-    @base_query         = base_query
-    @base_headers       = base_headers
-    @net_http_start_opt = net_http_start_opt
+    @address                        = address
+    @port                           = if port
+                                        port
+                                      else
+                                        net_http_start_opt[:use_ssl] ? 443 : 80
+                                      end
+    @base_path                      = base_path
+    @base_query                     = base_query
+    @base_headers                   = base_headers
+    @net_http_start_opt             = net_http_start_opt
     unless @net_http_start_opt.has_key?(:use_ssl)
       @net_http_start_opt[:use_ssl] = true if port == 443
     end
-    @username           = username
-    @password           = password
-    @net_http           = nil
+    @username                       = username
+    @password                       = password
+    @default_expected_status_code   = default_expected_status_code
+    @net_http                       = nil
   end
 
 
@@ -95,7 +102,15 @@ class SimpleRESTClient
   # :call-seq:
   # request(http_method, path, query: {}, headers: {}, body: nil, body_stream: nil, expected_status_code: :successful) {|http_response| ... } -> (block return value)
   # request(http_method, path, query: {}, headers: {}, body: nil, body_stream: nil, expected_status_code: :successful) -> Net::HTTPResponse
-  def request http_method, path, query: {}, headers: {}, body: nil, body_stream: nil, expected_status_code: :successful
+  def request(
+    http_method,
+    path,
+    query: {},
+    headers: {},
+    body: nil,
+    body_stream: nil,
+    expected_status_code: default_expected_status_code[http_method]
+  )
     uri = build_uri(path, query)
     request = build_request(http_method, uri, headers, body, body_stream)
     response = net_http.request(request)
