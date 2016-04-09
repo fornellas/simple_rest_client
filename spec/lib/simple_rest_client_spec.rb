@@ -18,7 +18,7 @@ RSpec.describe SimpleRESTClient do
   let(:username) { 'username' }
   let(:password) { 'password' }
   let(:default_headers) do
-    p Net::HTTP::Get.new('/').to_hash.merge(
+    Net::HTTP::Get.new('/').to_hash.merge(
       'user-agent' => "#{described_class}/#{described_class.const_get(:VERSION)} (#{RUBY_DESCRIPTION}) Ruby"
     )
   end
