@@ -57,7 +57,9 @@ class SimpleRESTClient
   attr_reader :password
   # Hash with default values for #request. Keys are Symbols to HTTP methods (eg: <tt>:get</tt>), values are anything accepted by #request's expected_status_code parameter.
   attr_reader :default_expected_status_code
-  # List of hooks that are called after each request
+  # List of hooks that are called before each request
+  attr_reader :pre_request_hooks
+  # List of hooks that are called after each request.
   attr_reader :post_request_hooks
 
   # Creates a new HTTP client. Please refer to each attribute's documentation for details and default values.
@@ -89,11 +91,18 @@ class SimpleRESTClient
     @password                       = password
     @default_expected_status_code   = default_expected_status_code
     @net_http                       = nil
+    @pre_request_hooks              = []
     @post_request_hooks             = []
   end
 
+  # Register given block at #pre_request_hooks.
+  def add_pre_request_hook &block # :yields: request
+    raise ArgumentError, "A block must be provided!" unless block
+    @pre_request_hooks << block
+  end
+
   # Register given block at #post_request_hooks.
-  def add_post_request_hook &block
+  def add_post_request_hook &block # :yields: response, request
     raise ArgumentError, "A block must be provided!" unless block
     @post_request_hooks << block
   end
@@ -121,6 +130,9 @@ class SimpleRESTClient
   )
     uri = build_uri(path, query)
     request = build_request(http_method, uri, headers, body, body_stream)
+    @pre_request_hooks.each do |pre_request_hook|
+      pre_request_hook.call(request)
+    end
     net_http.request(request) do |response|
       @post_request_hooks.each do |post_request_hook|
         post_request_hook.call(response, request)
