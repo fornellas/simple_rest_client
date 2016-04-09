@@ -267,7 +267,7 @@ RSpec.describe SimpleRESTClient do
       subject.request(http_method, path)
       expect(request).to have_been_requested
     end
-    fcontext 'expected_status_code' do
+    context 'expected_status_code' do
       shared_examples :expected_status_code do |expected_status_code:, unexpected_status_code:, real_status_code:|
         context "expected #{expected_status_code}, got #{real_status_code}" do
           it 'does not raise' do
@@ -317,14 +317,6 @@ RSpec.describe SimpleRESTClient do
             real_status_code:       200
           )
         end
-        context 'as text' do
-          include_examples(
-            :expected_status_code,
-            expected_status_code:   "200",
-            unexpected_status_code: 202,
-            real_status_code:       200
-          )
-        end
         context 'as array' do
           include_examples(
             :expected_status_code,
@@ -333,21 +325,42 @@ RSpec.describe SimpleRESTClient do
             real_status_code:       200
           )
         end
-        [
-          [:informational, 201, 100],
-          [:successful,    301, 202],
-          [:redirection,   201, 301],
-          [:client_error,  201, 400],
-          [:server_error,  201, 503],
-        ].each do |args|
-          expected_status_code, unexpected_status_code, real_status_code = *args
-          context ":#{expected_status_code}" do
-            include_examples(
-              :expected_status_code,
-              expected_status_code:   expected_status_code,
-              unexpected_status_code: unexpected_status_code,
-              real_status_code:       real_status_code
-            )
+        context 'as symbol' do
+          [
+            [:informational, 201, 100],
+            [:successful,    301, 202],
+            [:redirection,   201, 301],
+            [:client_error,  201, 400],
+            [:server_error,  201, 503],
+          ].each do |args|
+            expected_status_code, unexpected_status_code, real_status_code = *args
+            context ":#{expected_status_code}" do
+              include_examples(
+                :expected_status_code,
+                expected_status_code:   expected_status_code,
+                unexpected_status_code: unexpected_status_code,
+                real_status_code:       real_status_code
+              )
+            end
+          end
+        end
+        context 'as class' do
+          [
+            [Net::HTTPInformation, 200, 100],
+            [Net::HTTPSuccess,     100, 200],
+            [Net::HTTPRedirection, 100, 300],
+            [Net::HTTPClientError, 100, 400],
+            [Net::HTTPServerError, 100, 500],
+          ].each do |args|
+            expected_status_code, unexpected_status_code, real_status_code = *args
+            context "#{expected_status_code}" do
+              include_examples(
+                :expected_status_code,
+                expected_status_code:   expected_status_code,
+                unexpected_status_code: unexpected_status_code,
+                real_status_code:       real_status_code
+              )
+            end
           end
         end
         context 'nil' do

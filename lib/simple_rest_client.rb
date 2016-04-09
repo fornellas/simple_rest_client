@@ -91,7 +91,7 @@ class SimpleRESTClient
   # query:: URI query, in form of a Hash.
   # headers:: Request headers in form of a Hash. Must not conflict with #base_headers.
   # body / body_stream:: For requests tha supporting sending a body, use one of the two to define a payload.
-  # expected_status_code:: Validate response's HTTP status-code. Can be given as a code number (<tt>200</tt> or <tt>"200"</tt>), Array of codes (<tt>[200, 201]</tt>), Range (<tt>(200..202)</tt>) or one of <tt>:informational</tt>, <tt>:successful</tt>, <tt>:redirection</tt>, <tt>:client_error</tt> or <tt>:server_error</tt>. To disable status code validation, set to <tt>nil</tt>.
+  # expected_status_code:: Validate response's HTTP status-code. Can be given as a code number (<tt>200</tt>), Array of codes (<tt>[200, 201]</tt>), Range (<tt>(200..202)</tt>), one of <tt>:informational</tt>, <tt>:successful</tt>, <tt>:redirection</tt>, <tt>:client_error</tt>, <tt>:server_error</tt> or response class (Net::HTTPSuccess). To disable status code validation, set to <tt>nil</tt>.
   # :call-seq:
   # request(http_method, path, query: {}, headers: {}, body: nil, body_stream: nil, expected_status_code: :successful) {|http_response| ... } -> (block return value)
   # request(http_method, path, query: {}, headers: {}, body: nil, body_stream: nil, expected_status_code: :successful) -> Net::HTTPResponse
@@ -257,29 +257,30 @@ class SimpleRESTClient
 
   def validate_status_code response, expected_status_code
     return unless expected_status_code
-    case expected_status_code
-    when Array
-      expected_status_code.map!{|code| Integer(code)}
-    when Symbol
-      expected_status_code =case expected_status_code
-      when :informational
-        (100...200)
-      when :successful
-        (200...300)
-      when :redirection
-        (300...400)
-      when :client_error
-        (400...500)
-      when :server_error
-        (500...600)
+    if Class === expected_status_code
+      unless expected_status_code === response
+        raise UnexpectedStatusCode.new(expected_status_code, response)
       else
-        raise ArgumentError.new("Invalid expected_status_code: #{expected_status_code.inspect}.")
+        return
       end
-    when Range
-    else
-      expected_status_code = [Integer(expected_status_code)]
     end
-    unless expected_status_code.include?(Integer(response.code))
+    expected_status_code_list = case expected_status_code
+      when Integer          ; [expected_status_code]
+      when Array, Range     ; expected_status_code
+      when Symbol
+        case expected_status_code
+        when :informational ; (100...200)
+        when :successful    ; (200...300)
+        when :redirection   ; (300...400)
+        when :client_error  ; (400...500)
+        when :server_error  ; (500...600)
+        else
+          raise ArgumentError.new("Invalid expected_status_code symbol: #{expected_status_code.inspect}.")
+        end
+      else
+        raise ArgumentError, "Invalid expected_status_code argument: #{expected_status_code.inspect}."
+      end
+    unless expected_status_code_list.include?(Integer(response.code))
       raise UnexpectedStatusCode.new(expected_status_code, response)
     end
   end
