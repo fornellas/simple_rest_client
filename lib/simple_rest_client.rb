@@ -448,7 +448,7 @@ class SimpleRESTClient
     end
     add_around_request_hook do |block, request|
       begin
-        response = block.call
+        block.call
       rescue
         log(:error, "Failed to #{request.method.upcase} #{request.uri}: #{$!}")
         raise $!
