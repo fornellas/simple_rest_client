@@ -455,5 +455,22 @@ RSpec.describe SimpleRESTClient do
         end
       end
     end
+    context 'post request hooks' do
+      it 'calls registered hooks' do
+        stub_request(:get, "#{address}:#{path}")
+          .to_return(body: body)
+        hook_calls = 0
+        subject.add_post_request_hook do |response, request|
+          hook_calls += 1
+          expect(response).to be_a(Net::HTTPResponse)
+          expect(response.body).to eq(body)
+          expect(request).to be_a(Net::HTTPRequest)
+          expect(request.uri.path).to eq(path)
+        end
+        expect do
+          subject.get(path)
+        end.to change{hook_calls}.from(0).to(1)
+      end
+    end
   end
 end

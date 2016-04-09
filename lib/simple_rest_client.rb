@@ -57,6 +57,8 @@ class SimpleRESTClient
   attr_reader :password
   # Hash with default values for #request. Keys are Symbols to HTTP methods (eg: <tt>:get</tt>), values are anything accepted by #request's expected_status_code parameter.
   attr_reader :default_expected_status_code
+  # List of hooks that are called after each request
+  attr_reader :post_request_hooks
 
   # Creates a new HTTP client. Please refer to each attribute's documentation for details and default values.
   def initialize(
@@ -87,8 +89,14 @@ class SimpleRESTClient
     @password                       = password
     @default_expected_status_code   = default_expected_status_code
     @net_http                       = nil
+    @post_request_hooks             = []
   end
 
+  # Register given block at #post_request_hooks.
+  def add_post_request_hook &block
+    raise ArgumentError, "A block must be provided!" unless block
+    @post_request_hooks << block
+  end
 
   # :section: Generic requests
 
@@ -114,6 +122,9 @@ class SimpleRESTClient
     uri = build_uri(path, query)
     request = build_request(http_method, uri, headers, body, body_stream)
     net_http.request(request) do |response|
+      @post_request_hooks.each do |post_request_hook|
+        post_request_hook.call(response, request)
+      end
       validate_status_code(response, expected_status_code)
       fix_response_encoding(response)
       if block_given?
