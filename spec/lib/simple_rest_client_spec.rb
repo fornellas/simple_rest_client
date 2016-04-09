@@ -82,162 +82,66 @@ RSpec.describe SimpleRESTClient do
       end
     end
   end
-  context '#base_path' do
-    context 'unset' do
-      it 'does requests without base_path prefix' do
-        request = stub_request(:get, "#{address}#{path}")
-        subject.send(:get, path)
-        expect(request).to have_been_requested
-      end
-    end
-    context 'set' do
-      subject do
-        described_class.new(address: address, base_path: base_path)
-      end
-      it 'prefix requests with base_path' do
-        request = stub_request(:get, "#{address}#{base_path}#{path}")
-        subject.send(:get, path)
-        expect(request).to have_been_requested
-      end
-    end
-  end
-  context '#base_query' do
-    context 'unset' do
-      it 'does not change query' do
-        request = stub_request(:get, "#{address}#{path}")
-          .with(query: {})
-        subject.send(:get, path)
-        expect(request).to have_been_requested
-      end
-    end
-    context 'set' do
-      subject do
-        described_class.new(address: address, base_query: base_query)
-      end
-      context 'conflicting parameters' do
-        it 'raises ArgumentError' do
-          expect do
-            subject.send(:get, path, query: base_query)
-          end.to raise_error(
-            ArgumentError,
-            /passed query parameters conflict with base_query parameters/i
-          )
-        end
-      end
-      it 'sets base_query parameters' do
-        request = stub_request(:get, "#{address}#{path}")
-          .with(query: base_query)
-        subject.send(:get, path)
-        expect(request).to have_been_requested
-      end
-    end
-  end
-  context 'base_headers' do
-    context 'unset' do
-      it 'does not send extra headers' do
-        request = stub_request(:get, "#{address}#{path}")
-          .with(headers: default_headers)
-        subject.send(:get, path)
-        expect(request).to have_been_requested
-      end
-    end
-    context 'set' do
-      subject do
-        described_class.new(address: address, base_headers: base_headers)
-      end
-      context 'conflicting parameters' do
-        it 'raises ArgumentError' do
-          expect do
-            subject.send(:get, path, headers: base_headers)
-          end.to raise_error(
-            ArgumentError,
-            /passed headers conflict with base_headers/i
-          )
-        end
-      end
-      it 'sets base_headers' do
-        request = stub_request(:get, "#{address}#{path}")
-          .with(headers: default_headers.merge(headers))
-        subject.send(:get, path, headers: headers)
-        expect(request).to have_been_requested
-      end
-    end
-  end
-  context '#username and #password' do
-    context 'unset' do
-      it 'does not use basic auth' do
-        request = stub_request(:get, "#{address}#{path}")
-        subject.send(:get, path, headers: headers)
-        expect(request).to have_been_requested
-      end
-    end
-    context 'set' do
-      subject do
-        described_class.new(
-          address: address,
-          username: username,
-          password: password
-        )
-      end
-      it 'uses basic auth' do
-        request = stub_request(:get, "#{username}:#{password}@#{address}#{path}")
-        subject.send(:get, path, headers: headers)
-        expect(request).to have_been_requested
-      end
-    end
-  end
   context 'HTTP Methods' do
-    let(:request_parameters) { {query: query, headers: headers} }
-    [
-      :get,
-      :head,
-      :post,
-      :put,
-      :delete,
-      :options,
-      :trace,
-      :patch
-    ].each do |http_method|
-      request_has_body = Net::HTTP.const_get(http_method.downcase.capitalize)
+      let(:request_parameters) { {query: query, headers: headers} }
+      [
+        :get,
+        :head,
+        :post,
+        :put,
+        :delete,
+        :options,
+        :trace,
+        :patch
+      ].each do |http_method|
+        request_has_body = Net::HTTP.const_get(http_method.downcase.capitalize)
         .const_get(:REQUEST_HAS_BODY)
-      if request_has_body
-        context "#{http_method.upcase}" do
-          context 'static body' do
-            it "can perform #{http_method.upcase} requests" do
+        if request_has_body
+          context "\##{http_method}" do
+            it "works with static body" do
               request_parameters.merge!(body: body)
               request = stub_request(http_method, "#{address}#{path}")
-                .with(request_parameters)
+              .with(request_parameters)
               expect(subject)
-                .to receive(:request)
-                .with(http_method, path, request_parameters)
-                .and_call_original
+              .to receive(:request)
+              .with(http_method, path, request_parameters)
+              .and_call_original
+              subject.send(http_method, path, request_parameters)
+              expect(request).to have_been_requested
+            end
+            it "works with streaming body" do
+              request = stub_request(http_method, "#{address}#{path}")
+              .with(request_parameters.merge(body: body_stream_text))
+              body_stream_arg = body_stream(body_stream_text)
+              expect(subject)
+              .to receive(:request)
+              .with(
+              http_method,
+              path,
+              request_parameters.merge(body_stream: body_stream_arg)
+              )
+              .and_call_original
+              subject.send(
+              http_method,
+              path,
+              request_parameters.merge(body_stream: body_stream_arg)
+              )
+              expect(request).to have_been_requested
+            end
+            it "works with no body" do
+              request = stub_request(http_method, "#{address}#{path}")
+              .with(request_parameters)
+              expect(subject)
+              .to receive(:request)
+              .with(http_method, path, request_parameters)
+              .and_call_original
               subject.send(http_method, path, request_parameters)
               expect(request).to have_been_requested
             end
           end
-          context 'streaming body' do
-            it "can perform #{http_method.upcase} requests" do
-              request = stub_request(http_method, "#{address}#{path}")
-                .with(request_parameters.merge(body: body_stream_text))
-              body_stream_arg = body_stream(body_stream_text)
-              expect(subject)
-                .to receive(:request)
-                .with(
-                  http_method,
-                  path,
-                  request_parameters.merge(body_stream: body_stream_arg)
-                )
-                .and_call_original
-              subject.send(
-                http_method,
-                path,
-                request_parameters.merge(body_stream: body_stream_arg)
-              )
-              expect(request).to have_been_requested
-            end
-          end
-          context 'no body' do
-            it "can perform #{http_method.upcase} requests" do
+        else
+          context "\##{http_method}" do
+            it "performs request" do
               request = stub_request(http_method, "#{address}#{path}")
               .with(request_parameters)
               expect(subject)
@@ -249,26 +153,118 @@ RSpec.describe SimpleRESTClient do
             end
           end
         end
-      else
-        it "can perform #{http_method.upcase} requests" do
-          request = stub_request(http_method, "#{address}#{path}")
-            .with(request_parameters)
-          expect(subject)
-            .to receive(:request)
-            .with(http_method, path, request_parameters)
-            .and_call_original
-          subject.send(http_method, path, request_parameters)
-          expect(request).to have_been_requested
-        end
       end
     end
-  end
   context '#request' do
     let(:http_method) { :mkcol }
     it 'can perform generic requests' do
       request = stub_request(http_method, "#{address}#{path}")
       subject.request(http_method, path)
       expect(request).to have_been_requested
+    end
+    context '#base_path' do
+      context 'unset' do
+        it 'does requests without base_path prefix' do
+          request = stub_request(:get, "#{address}#{path}")
+          subject.send(:get, path)
+          expect(request).to have_been_requested
+        end
+      end
+      context 'set' do
+        subject do
+          described_class.new(address: address, base_path: base_path)
+        end
+        it 'prefix requests with base_path' do
+          request = stub_request(:get, "#{address}#{base_path}#{path}")
+          subject.send(:get, path)
+          expect(request).to have_been_requested
+        end
+      end
+    end
+    context '#base_query' do
+      context 'unset' do
+        it 'does not change query' do
+          request = stub_request(:get, "#{address}#{path}")
+          .with(query: {})
+          subject.send(:get, path)
+          expect(request).to have_been_requested
+        end
+      end
+      context 'set' do
+        subject do
+          described_class.new(address: address, base_query: base_query)
+        end
+        context 'conflicting parameters' do
+          it 'raises ArgumentError' do
+            expect do
+              subject.send(:get, path, query: base_query)
+            end.to raise_error(
+            ArgumentError,
+            /passed query parameters conflict with base_query parameters/i
+            )
+          end
+        end
+        it 'sets base_query parameters' do
+          request = stub_request(:get, "#{address}#{path}")
+          .with(query: base_query)
+          subject.send(:get, path)
+          expect(request).to have_been_requested
+        end
+      end
+    end
+    context 'base_headers' do
+      context 'unset' do
+        it 'does not send extra headers' do
+          request = stub_request(:get, "#{address}#{path}")
+          .with(headers: default_headers)
+          subject.send(:get, path)
+          expect(request).to have_been_requested
+        end
+      end
+      context 'set' do
+        subject do
+          described_class.new(address: address, base_headers: base_headers)
+        end
+        context 'conflicting parameters' do
+          it 'raises ArgumentError' do
+            expect do
+              subject.send(:get, path, headers: base_headers)
+            end.to raise_error(
+            ArgumentError,
+            /passed headers conflict with base_headers/i
+            )
+          end
+        end
+        it 'sets base_headers' do
+          request = stub_request(:get, "#{address}#{path}")
+          .with(headers: default_headers.merge(headers))
+          subject.send(:get, path, headers: headers)
+          expect(request).to have_been_requested
+        end
+      end
+    end
+    context '#username and #password' do
+      context 'unset' do
+        it 'does not use basic auth' do
+          request = stub_request(:get, "#{address}#{path}")
+          subject.send(:get, path, headers: headers)
+          expect(request).to have_been_requested
+        end
+      end
+      context 'set' do
+        subject do
+          described_class.new(
+          address: address,
+          username: username,
+          password: password
+          )
+        end
+        it 'uses basic auth' do
+          request = stub_request(:get, "#{username}:#{password}@#{address}#{path}")
+          subject.send(:get, path, headers: headers)
+          expect(request).to have_been_requested
+        end
+      end
     end
     context 'expected_status_code' do
       shared_examples :expected_status_code do |expected_status_code:, unexpected_status_code:, real_status_code:|
