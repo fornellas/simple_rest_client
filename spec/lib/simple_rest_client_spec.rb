@@ -455,6 +455,5 @@ RSpec.describe SimpleRESTClient do
         end
       end
     end
-    it 'yields response'
   end
 end
