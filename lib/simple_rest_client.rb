@@ -127,6 +127,15 @@ class SimpleRESTClient
     setup_logging
   end
 
+
+  # Instance of Net::HTTP.
+  def net_http
+    return @net_http if @net_http
+    @net_http = Net::HTTP.new(address, port, net_http_start_opt)
+    ObjectSpace.define_finalizer( self, proc { @net_http.finish } )
+    @net_http
+  end
+
   # :section: Hooks
 
   # Register given block at #pre_request_hooks.
@@ -261,7 +270,7 @@ class SimpleRESTClient
   # :method: patch
   http_method :patch
 
-  # :section: Exceptions
+  # :section:
 
   # Raised when an unexpected HTTP status code was returned.
   class UnexpectedStatusCode < RuntimeError
@@ -276,14 +285,6 @@ class SimpleRESTClient
   end
 
   private
-
-  # Returns a cached instance of Net::HTTP.
-  def net_http
-    return @net_http if @net_http
-    @net_http = Net::HTTP.new(address, port, net_http_start_opt)
-    ObjectSpace.define_finalizer( self, proc { @net_http.finish } )
-    @net_http
-  end
 
   def build_uri path='/', query={}
     # Base
