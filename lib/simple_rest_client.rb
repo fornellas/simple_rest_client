@@ -153,7 +153,9 @@ class SimpleRESTClient
     uri = build_uri(path, query)
     request = build_request(http_method, uri, headers, body, body_stream)
     @around_request.call(
-      proc{do_request(request, expected_status_code, &block)},
+      proc do
+        do_request(request, expected_status_code, &block)
+      end,
       request
     )
   end
@@ -163,11 +165,11 @@ class SimpleRESTClient
       pre_request_hook.call(request)
     end
     net_http.request(request) do |response|
+      validate_status_code(response, expected_status_code)
+      fix_response_encoding(response)
       @post_request_hooks.each do |post_request_hook|
         post_request_hook.call(response, request)
       end
-      validate_status_code(response, expected_status_code)
-      fix_response_encoding(response)
       if block
         return block.call(response)
       else

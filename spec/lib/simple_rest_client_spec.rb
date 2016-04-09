@@ -494,7 +494,6 @@ RSpec.describe SimpleRESTClient do
             expect(response.body).to eq(body)
           end
         end
-        it 'calls multiple hooks in order'
       end
     end
   end
