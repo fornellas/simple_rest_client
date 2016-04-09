@@ -208,7 +208,7 @@ class SimpleRESTClient
   # Returns a cached instance of Net::HTTP.
   def net_http
     return @net_http if @net_http
-    @net_http = Net::HTTP.start(address, port)
+    @net_http = Net::HTTP.start(address, port, net_http_start_opt)
     ObjectSpace.define_finalizer( self, proc { @net_http.finish } )
     @net_http
   end

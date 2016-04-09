@@ -375,5 +375,13 @@ RSpec.describe SimpleRESTClient do
         end
       end
     end
+    it 'passes net_http_start_opt to Net::HTTP.start' do
+      request = stub_request(http_method, "#{address}#{path}")
+      expect(Net::HTTP)
+        .to receive(:start)
+        .with(any_args, subject.net_http_start_opt)
+        .and_call_original
+      subject.request(http_method, path)
+    end
   end
 end
