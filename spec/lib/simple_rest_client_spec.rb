@@ -456,33 +456,45 @@ RSpec.describe SimpleRESTClient do
       end
     end
     context 'hooks' do
-      it 'pre request' do
-        stub_request(:get, "#{address}:#{path}")
+      before(:example) do
+        @request = stub_request(:get, "#{address}:#{path}")
           .to_return(body: body)
-        hook_calls = 0
+        @hook_calls = 0
+      end
+      after(:example) do
+        expect do
+          subject.get(path)
+        end.to change{@hook_calls}.from(0).to(1)
+        expect(@request).to have_been_requested
+      end
+      example 'pre request' do
         subject.add_pre_request_hook do |request|
-          hook_calls += 1
+          @hook_calls += 1
           expect(request).to be_a(Net::HTTPRequest)
           expect(request.uri.path).to eq(path)
         end
-        expect do
-          subject.get(path)
-        end.to change{hook_calls}.from(0).to(1)
       end
-      it 'post request' do
-        stub_request(:get, "#{address}:#{path}")
-          .to_return(body: body)
-        hook_calls = 0
+      example 'post request' do
         subject.add_post_request_hook do |response, request|
-          hook_calls += 1
+          @hook_calls += 1
           expect(response).to be_a(Net::HTTPResponse)
           expect(response.body).to eq(body)
           expect(request).to be_a(Net::HTTPRequest)
           expect(request.uri.path).to eq(path)
         end
-        expect do
-          subject.get(path)
-        end.to change{hook_calls}.from(0).to(1)
+      end
+      context 'around request' do
+        it 'calls hook' do
+          subject.add_around_request_hook do |block, request|
+            @hook_calls += 1
+            expect(request).to be_a(Net::HTTPRequest)
+            expect(request.uri.path).to eq(path)
+            response = block.call
+            expect(response).to be_a(Net::HTTPResponse)
+            expect(response.body).to eq(body)
+          end
+        end
+        it 'calls multiple hooks in order'
       end
     end
   end

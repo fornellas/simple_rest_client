@@ -61,6 +61,8 @@ class SimpleRESTClient
   attr_reader :pre_request_hooks
   # List of hooks that are called after each request.
   attr_reader :post_request_hooks
+  # List of hooks that are called around each request.
+  attr_reader :around_request_hook
 
   # Creates a new HTTP client. Please refer to each attribute's documentation for details and default values.
   def initialize(
@@ -93,6 +95,8 @@ class SimpleRESTClient
     @net_http                       = nil
     @pre_request_hooks              = []
     @post_request_hooks             = []
+    @around_request_hooks           = []
+    @around_request                 = proc { |block, request| block.call }
   end
 
   # Register given block at #pre_request_hooks.
@@ -105,6 +109,23 @@ class SimpleRESTClient
   def add_post_request_hook &block # :yields: response, request
     raise ArgumentError, "A block must be provided!" unless block
     @post_request_hooks << block
+  end
+
+  # Register given block at #around_request_hook. Given block must call received block argument, to make the request. Exemple:
+  #  simple_rest_client.add_around_request_hook do |block, request|
+  #    # do something before the request is made
+  #    response = block.call
+  #    # do something after the request was made
+  #  end
+  def add_around_request_hook &new_block # :yields: block, request
+    raise ArgumentError, "A block must be provided!" unless new_block
+    old_around_block = @around_request
+    @around_request = proc do |block, request|
+      old_around_block.call(
+        proc{new_block.call(block, request)},
+        request
+      )
+    end
   end
 
   # :section: Generic requests
@@ -126,10 +147,18 @@ class SimpleRESTClient
     headers: {},
     body: nil,
     body_stream: nil,
-    expected_status_code: default_expected_status_code[http_method]
+    expected_status_code: default_expected_status_code[http_method],
+    &block
   )
     uri = build_uri(path, query)
     request = build_request(http_method, uri, headers, body, body_stream)
+    @around_request.call(
+      proc{do_request(request, expected_status_code, &block)},
+      request
+    )
+  end
+
+  private def do_request(request, expected_status_code, &block)
     @pre_request_hooks.each do |pre_request_hook|
       pre_request_hook.call(request)
     end
@@ -139,8 +168,8 @@ class SimpleRESTClient
       end
       validate_status_code(response, expected_status_code)
       fix_response_encoding(response)
-      if block_given?
-        return (yield response)
+      if block
+        return block.call(response)
       else
         return response
       end
