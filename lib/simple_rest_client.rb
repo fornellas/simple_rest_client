@@ -37,34 +37,57 @@ class SimpleRESTClient
   }.freeze
 
   # Default value for #default_expected_status_code
-  DEFAULT_EXPECTED_STATUS_CODE = Hash.new(:successful).freeze
+  DEFAULT_EXPECTED_STATUS_CODE           = Hash.new(:successful)
+  DEFAULT_EXPECTED_STATUS_CODE[:get]     = 200
+  DEFAULT_EXPECTED_STATUS_CODE[:head]    = 200
+  DEFAULT_EXPECTED_STATUS_CODE[:post]    = [200, 201, 202, 204, 205]
+  DEFAULT_EXPECTED_STATUS_CODE[:put]     = [200, 201, 202, 204, 205]
+  DEFAULT_EXPECTED_STATUS_CODE[:delete]  = [200, 202]
+  DEFAULT_EXPECTED_STATUS_CODE[:options] = [200, 204]
+  DEFAULT_EXPECTED_STATUS_CODE[:trace]   = 200
+  DEFAULT_EXPECTED_STATUS_CODE[:patch]   = [200, 201, 202, 204, 205]
+  DEFAULT_EXPECTED_STATUS_CODE.freeze
 
   # Hostname or IP address of the server.
   attr_reader :address
+
   # Port of the server. Defaults to 80 if HTTP and 443 if HTTPS (depends on <tt>net_http_start_opt[:use_ssl] == true</tt>).
   attr_reader :port
+
   # Base path to prefix all requests with. Must be URL encoded when needed.
   attr_reader :base_path
+
   # Base query string to use in all requests. Must be provided as a Hash.
   attr_reader :base_query
+
   # Base headers to be used in all requests. Must be provided as a Hash.
   attr_reader :base_headers
+
   # Hash opt to be used with with Net::HTTP.start. Defaults to DEFAULT_NET_HTTP_START_OPT. If #port is 443 and :use_ssl is not specified, it will be set to true.
   attr_reader :net_http_start_opt
+
   # Username for basic auth.
   attr_reader :username
+
   # Password for basic auth.
   attr_reader :password
   # Hash with default values for #request. Keys are Symbols to HTTP methods (eg: <tt>:get</tt>), values are anything accepted by #request's expected_status_code parameter.
+  # General purpose defaults are defined at DEFAULT_EXPECTED_STATUS_CODE.
   attr_reader :default_expected_status_code
+
   # List of hooks that are called before each request
   attr_reader :pre_request_hooks
+
   # List of hooks that are called after each request.
   attr_reader :post_request_hooks
+
   # List of hooks that are called around each request.
   attr_reader :around_request_hook
+
   # Logger instance where to log to.
   attr_reader :logger
+
+  # :section:
 
   # Creates a new HTTP client. Please refer to each attribute's documentation for details and default values.
   def initialize(
@@ -78,7 +101,7 @@ class SimpleRESTClient
     password:                     nil,
     default_expected_status_code: DEFAULT_EXPECTED_STATUS_CODE.dup,
     logger:                       nil
-    )
+  )
     @address                        = address
     @port                           = if port
                                         port
@@ -103,6 +126,8 @@ class SimpleRESTClient
     @around_request                 = proc { |block, request| block.call }
     setup_logging
   end
+
+  # :section: Hooks
 
   # Register given block at #pre_request_hooks.
   def add_pre_request_hook &block # :yields: request
@@ -165,24 +190,6 @@ class SimpleRESTClient
     )
   end
 
-  private def do_request(request, expected_status_code, &block)
-    @pre_request_hooks.each do |pre_request_hook|
-      pre_request_hook.call(request)
-    end
-    net_http.request(request) do |response|
-      validate_status_code(response, expected_status_code)
-      fix_response_encoding(response)
-      @post_request_hooks.each do |post_request_hook|
-        post_request_hook.call(response, request)
-      end
-      if block
-        return block.call(response)
-      else
-        return response
-      end
-    end
-  end
-
   # Define a instance method for given HTTP request method.
   def self.http_method http_method # :nodoc:
     self.class_eval do
@@ -192,12 +199,14 @@ class SimpleRESTClient
     end
   end
 
-  # :section: RFC7231 Hypertext Transfer Protocol (HTTP/1.1): Semantics and Content
+  # :section: HTTP Methods
+
+  # RFC7231 Hypertext Transfer Protocol (HTTP/1.1): Semantics and Content
 
   ##
+  # :method: get
   # Perform a GET request.
   # It is a wrapper around #request method, and accepts the same arguments.
-  # :method: get
   # :call-seq: get(*request_args, &block)
   http_method :get
 
@@ -243,14 +252,16 @@ class SimpleRESTClient
   # :call-seq: trace(*request_args, &block)
   http_method :trace
 
-  # :section: RFC5789 PATCH Method for HTTP
+  # RFC5789 PATCH Method for HTTP
 
   ##
   # Perform a PATCH request.
   # It is a wrapper around #request method, and accepts the same arguments.
-  # :method: patch
   # :call-seq: patch(*request_args, &block)
+  # :method: patch
   http_method :patch
+
+  # :section: Exceptions
 
   # Raised when an unexpected HTTP status code was returned.
   class UnexpectedStatusCode < RuntimeError
@@ -260,7 +271,7 @@ class SimpleRESTClient
       @response             = response
     end
     def to_s
-      "Expected HTTP status code to be #{expected_status_code}, but got #{response.code}."
+      "Expected HTTP status code to be #{expected_status_code.inspect}, but got #{response.code}."
     end
   end
 
@@ -329,6 +340,24 @@ class SimpleRESTClient
       .merge(headers)
       .map{|k,v| [k.to_s, v.to_s]}
       .to_h
+  end
+
+  def do_request(request, expected_status_code, &block)
+    @pre_request_hooks.each do |pre_request_hook|
+      pre_request_hook.call(request)
+    end
+    net_http.request(request) do |response|
+      validate_status_code(response, expected_status_code)
+      fix_response_encoding(response)
+      @post_request_hooks.each do |post_request_hook|
+        post_request_hook.call(response, request)
+      end
+      if block
+        return block.call(response)
+      else
+        return response
+      end
+    end
   end
 
   def validate_status_code response, expected_status_code

@@ -290,15 +290,15 @@ RSpec.describe SimpleRESTClient do
         end
       end
       context 'not specified' do
-        it 'defaults to :successful' do
+        it 'does not raise for default expected value' do
           request = stub_request(:get, "#{address}#{path}")
-            .to_return(status: 202)
+            .to_return(status: 200)
           expect do
             subject.get(path)
           end.not_to raise_error
           expect(request).to have_been_requested
         end
-        it 'raises for non :successful' do
+        it 'raises for non default expected value' do
           request = stub_request(:get, "#{address}#{path}")
           .to_return(status: 300)
           expect do
@@ -515,7 +515,7 @@ RSpec.describe SimpleRESTClient do
           expect(logger).to receive(:info)
             .with("GET http://#{address}#{path}")
           expect(logger).to receive(:error)
-            .with("Failed to GET http://#{address}#{path}: Expected HTTP status code to be successful, but got #{error_status_code}.")
+            .with("Failed to GET http://#{address}#{path}: Expected HTTP status code to be 200, but got #{error_status_code}.")
           subject.get(path) rescue described_class.const_get(:UnexpectedStatusCode)
         end
       end
