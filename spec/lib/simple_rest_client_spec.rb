@@ -531,7 +531,7 @@ RSpec.describe SimpleRESTClient do
       before(:example) do
         stub_request(:get, "#{address}:#{path}")
       end
-      fit 'allows to override #net_http attributes' do
+      it 'allows to override #net_http attributes' do
         expect(subject.net_http)
           .to receive(:open_timeout=)
           .with(override_open_timeout)
