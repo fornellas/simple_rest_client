@@ -55,7 +55,7 @@ class SimpleRESTClient
   attr_reader :username
   # Password for basic auth.
   attr_reader :password
-  # Hash with default values for #request. Keys are Symbols to HTTP methods (eg: <tt>:get</tt>).
+  # Hash with default values for #request. Keys are Symbols to HTTP methods (eg: <tt>:get</tt>), values are anything accepted by #request's expected_status_code parameter.
   attr_reader :default_expected_status_code
 
   # Creates a new HTTP client. Please refer to each attribute's documentation for details and default values.
@@ -113,12 +113,14 @@ class SimpleRESTClient
   )
     uri = build_uri(path, query)
     request = build_request(http_method, uri, headers, body, body_stream)
-    response = net_http.request(request)
-    validate_status_code(response, expected_status_code)
-    if block_given?
-      return (yield response)
-    else
-      return response
+    net_http.request(request) do |response|
+      validate_status_code(response, expected_status_code)
+      fix_response_encoding(response)
+      if block_given?
+        return (yield response)
+      else
+        return response
+      end
     end
   end
 
@@ -297,6 +299,50 @@ class SimpleRESTClient
       end
     unless expected_status_code_list.include?(Integer(response.code))
       raise UnexpectedStatusCode.new(expected_status_code, response)
+    end
+  end
+
+  # Implement a solution for https://bugs.ruby-lang.org/issues/2567
+  def fix_response_encoding response
+    fix_response_body(response)
+    fix_response_read_body(response)
+  end
+
+  # Wrap around Net:HTTPResponse#body to make it respect headers charset.
+  def fix_response_body response
+    original_body = response.method(:body)
+    response.define_singleton_method(:body) do |*args, &block|
+      body = original_body.call(*args, &block)
+      if response.type_params['charset'] && body.respond_to?(:force_encoding) &&
+        body.force_encoding(response.type_params['charset'])
+      end
+      body
+    end
+  end
+
+  # Wrap around Net:HTTPResponse#read_body to make it respect headers charset.
+  def fix_response_read_body(response)
+    original_read_body = response.method(:read_body)
+    response.define_singleton_method(:read_body) do |dest=nil, &block|
+      charset = type_params['charset']
+      charset = 'ASCII-8BIT' unless charset
+      if block
+        final_block = proc do |chunk|
+          if charset
+            block.call(chunk.force_encoding(charset))
+          else
+            block.call(chunk)
+          end
+        end
+        original_read_body.call(dest, &final_block)
+      else
+        ret_value = original_read_body.call(dest)
+        if charset
+          dest.force_encoding(charset) if dest
+          ret_value.force_encoding(charset)
+        end
+        ret_value
+      end
     end
   end
 

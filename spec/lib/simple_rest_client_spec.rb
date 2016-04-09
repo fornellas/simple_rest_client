@@ -16,6 +16,7 @@ RSpec.describe SimpleRESTClient do
   end
   let(:username) { 'username' }
   let(:password) { 'password' }
+  let(:default_net_http_headers) { Net::HTTP::Get.new('/').to_hash }
   subject { described_class.new(address: address) }
   context '#initialize' do
     context '#port' do
@@ -127,13 +128,10 @@ RSpec.describe SimpleRESTClient do
     end
   end
   context 'base_headers' do
-    let(:default_headers) do
-      Net::HTTP::Get.new('/').to_hash
-    end
     context 'unset' do
       it 'does not send extra headers' do
         request = stub_request(:get, "#{address}#{path}")
-          .with(headers: default_headers)
+          .with(headers: default_net_http_headers)
         subject.send(:get, path)
         expect(request).to have_been_requested
       end
@@ -154,7 +152,7 @@ RSpec.describe SimpleRESTClient do
       end
       it 'sets base_headers' do
         request = stub_request(:get, "#{address}#{path}")
-          .with(headers: default_headers.merge(headers))
+          .with(headers: default_net_http_headers.merge(headers))
         subject.send(:get, path, headers: headers)
         expect(request).to have_been_requested
       end
@@ -376,12 +374,87 @@ RSpec.describe SimpleRESTClient do
       end
     end
     it 'passes net_http_start_opt to Net::HTTP.start' do
-      request = stub_request(http_method, "#{address}#{path}")
+      stub_request(http_method, "#{address}#{path}")
       expect(Net::HTTP)
         .to receive(:start)
         .with(any_args, subject.net_http_start_opt)
         .and_call_original
       subject.request(http_method, path)
     end
+    # Test workarounds for https://bugs.ruby-lang.org/issues/2567
+    context 'response body encoding' do
+      let(:utf8_text) { 'fábio' }
+      let(:body_encoding) { 'ISO-8859-1' }
+      let(:raw_body) do
+        utf8_text.encode(body_encoding).force_encoding('US-ASCII')
+      end
+      context 'charset at headers' do
+        before(:example) do
+          @request = stub_request(:get, "#{address}:#{path}")
+            .to_return(
+              body: raw_body,
+              headers: default_net_http_headers.merge(
+                "Content-Type" => "text/html; charset=#{body_encoding}"
+              )
+            )
+        end
+        after(:example) do
+          expect(@response_body.encoding.to_s).to eq(body_encoding)
+          expect(@response_body.encode('UTF-8')).to eq(utf8_text)
+        end
+        it 'Net::HTTPResponse#body' do
+          @response_body = subject.request(:get, path).body
+        end
+        it 'Net::HTTPResponse#read_body' do
+          @response_body = subject.request(:get, path).read_body
+        end
+        it 'Net::HTTPResponse#read_body (with block)' do
+          @response_body = nil
+          subject.request(:get, path) do |response|
+            response.read_body do |chunk|
+              if @response_body
+                @response_body << chunk
+              else
+                @response_body = chunk
+              end
+            end
+          end
+        end
+      end
+      context 'no charset at headers defaults to ASCII-8BIT' do
+        before(:example) do
+          @request = stub_request(:get, "#{address}:#{path}")
+            .to_return(
+              body: raw_body,
+              headers: default_net_http_headers.merge(
+                "Content-Type" => "text/html"
+              )
+            )
+        end
+        after(:example) do
+          expect(@response_body.encoding.to_s).to eq('ASCII-8BIT')
+          expect(@response_body.b).to eq(raw_body.b)
+        end
+        it 'Net::HTTPResponse#body' do
+          @response_body = subject.request(:get, path).body
+        end
+        it 'Net::HTTPResponse#read_body' do
+          @response_body = subject.request(:get, path).read_body
+        end
+        it 'Net::HTTPResponse#read_body (with block)' do
+          @response_body = nil
+          subject.request(:get, path) do |response|
+            response.read_body do |chunk|
+              if @response_body
+                @response_body << chunk
+              else
+                @response_body = chunk
+              end
+            end
+          end
+        end
+      end
+    end
+    it 'yields response'
   end
 end
