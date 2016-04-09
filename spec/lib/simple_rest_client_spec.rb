@@ -17,7 +17,11 @@ RSpec.describe SimpleRESTClient do
   end
   let(:username) { 'username' }
   let(:password) { 'password' }
-  let(:default_net_http_headers) { Net::HTTP::Get.new('/').to_hash }
+  let(:default_headers) do
+    p Net::HTTP::Get.new('/').to_hash.merge(
+      'user-agent' => "#{described_class}/#{described_class.const_get(:VERSION)} (#{RUBY_DESCRIPTION}) Ruby"
+    )
+  end
   subject { described_class.new(address: address) }
   context '#initialize' do
     context '#port' do
@@ -132,7 +136,7 @@ RSpec.describe SimpleRESTClient do
     context 'unset' do
       it 'does not send extra headers' do
         request = stub_request(:get, "#{address}#{path}")
-          .with(headers: default_net_http_headers)
+          .with(headers: default_headers)
         subject.send(:get, path)
         expect(request).to have_been_requested
       end
@@ -153,7 +157,7 @@ RSpec.describe SimpleRESTClient do
       end
       it 'sets base_headers' do
         request = stub_request(:get, "#{address}#{path}")
-          .with(headers: default_net_http_headers.merge(headers))
+          .with(headers: default_headers.merge(headers))
         subject.send(:get, path, headers: headers)
         expect(request).to have_been_requested
       end
@@ -394,7 +398,7 @@ RSpec.describe SimpleRESTClient do
           @request = stub_request(:get, "#{address}:#{path}")
             .to_return(
               body: raw_body,
-              headers: default_net_http_headers.merge(
+              headers: default_headers.merge(
                 "Content-Type" => "text/html; charset=#{body_encoding}"
               )
             )
@@ -427,7 +431,7 @@ RSpec.describe SimpleRESTClient do
           @request = stub_request(:get, "#{address}:#{path}")
             .to_return(
               body: raw_body,
-              headers: default_net_http_headers.merge(
+              headers: default_headers.merge(
                 "Content-Type" => "text/html"
               )
             )

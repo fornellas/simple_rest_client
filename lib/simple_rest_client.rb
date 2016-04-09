@@ -338,6 +338,7 @@ class SimpleRESTClient
     end
     base_headers
       .merge(headers)
+      .merge('user-agent' => "#{self.class}/#{self.class.const_get(:VERSION)} (#{RUBY_DESCRIPTION}) Ruby")
       .map{|k,v| [k.to_s, v.to_s]}
       .to_h
   end
