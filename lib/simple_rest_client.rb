@@ -176,6 +176,7 @@ class SimpleRESTClient
   # headers:: Request headers in form of a Hash. Must not conflict with #base_headers.
   # body / body_stream:: For requests tha supporting sending a body, use one of the two to define a payload.
   # expected_status_code:: Validate response's HTTP status-code. Can be given as a code number (<tt>200</tt>), Array of codes (<tt>[200, 201]</tt>), Range (<tt>(200..202)</tt>), one of <tt>:informational</tt>, <tt>:successful</tt>, <tt>:redirection</tt>, <tt>:client_error</tt>, <tt>:server_error</tt> or response class (Net::HTTPSuccess). To disable status code validation, set to <tt>nil</tt>.
+  # net_http_attrs: Hash with attributes of #net_http to change only for this request. Useful for setting up Net::HTTP#read_timeout only for specific slow requests.
   # :call-seq:
   # request(http_method, path, query: {}, headers: {}, body: nil, body_stream: nil, expected_status_code: :successful) {|http_response| ... } -> (block return value)
   # request(http_method, path, query: {}, headers: {}, body: nil, body_stream: nil, expected_status_code: :successful) -> Net::HTTPResponse
@@ -187,16 +188,19 @@ class SimpleRESTClient
     body: nil,
     body_stream: nil,
     expected_status_code: default_expected_status_code[http_method],
+    net_http_attrs: {},
     &block
   )
     uri = build_uri(path, query)
     request = build_request(http_method, uri, headers, body, body_stream)
-    @around_request.call(
-      proc do
-        do_request(request, expected_status_code, &block)
-      end,
-      request
-    )
+    with_net_http_attrs(net_http_attrs) do
+      @around_request.call(
+        proc do
+          do_request(request, expected_status_code, &block)
+        end,
+        request
+      )
+    end
   end
 
   # Define a instance method for given HTTP request method.
@@ -342,6 +346,28 @@ class SimpleRESTClient
       .merge('user-agent' => "#{self.class}/#{self.class.const_get(:VERSION)} (#{RUBY_DESCRIPTION}) Ruby")
       .map{|k,v| [k.to_s, v.to_s]}
       .to_h
+  end
+
+  # Set given #net_http attributes, execute given block, and restore all attributes.
+  def with_net_http_attrs net_http_attrs
+    # Save original #net_http attributes
+    original_net_http_attrs = {}
+    net_http_attrs.each_key do |attribute|
+      original_net_http_attrs[attribute] = net_http.send(attribute)
+    end
+    begin
+      # Set temporary #net_http attributes
+      net_http_attrs.each_key do |attribute|
+        net_http.send(:"#{attribute}=", net_http_attrs[attribute])
+      end
+      # Run block
+      yield
+    ensure
+      # Restore original #net_http attributes
+      net_http_attrs.each_key do |attribute|
+        net_http.send(:"#{attribute}=", original_net_http_attrs[attribute])
+      end
+    end
   end
 
   def do_request(request, expected_status_code, &block)

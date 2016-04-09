@@ -516,8 +516,48 @@ RSpec.describe SimpleRESTClient do
             .with("GET http://#{address}#{path}")
           expect(logger).to receive(:error)
             .with("Failed to GET http://#{address}#{path}: Expected HTTP status code to be 200, but got #{error_status_code}.")
-          subject.get(path) rescue described_class.const_get(:UnexpectedStatusCode)
+          begin
+            subject.get(path)
+          rescue described_class.const_get(:UnexpectedStatusCode)
+          end
         end
+      end
+    end
+    context 'net_http' do
+      let!(:original_open_timeout) { subject.net_http.open_timeout }
+      let!(:original_read_timeout) { subject.net_http.read_timeout }
+      let(:override_open_timeout) { 23412 }
+      let(:override_read_timeout) { 23412 }
+      before(:example) do
+        stub_request(:get, "#{address}:#{path}")
+      end
+      fit 'allows to override #net_http attributes' do
+        expect(subject.net_http)
+          .to receive(:open_timeout=)
+          .with(override_open_timeout)
+          .and_call_original
+        expect(subject.net_http)
+          .to receive(:read_timeout=)
+          .with(override_read_timeout)
+          .and_call_original
+        expect(subject.net_http)
+          .to receive(:request)
+          .and_call_original
+        expect(subject.net_http)
+          .to receive(:open_timeout=)
+          .with(original_open_timeout)
+          .and_call_original
+        expect(subject.net_http)
+          .to receive(:read_timeout=)
+          .with(original_read_timeout)
+          .and_call_original
+        subject.get(
+          path,
+          net_http_attrs: {
+            open_timeout: override_open_timeout,
+            read_timeout: override_read_timeout,
+          }
+        )
       end
     end
   end
