@@ -1,5 +1,6 @@
 require 'simple_rest_client'
 require 'stringio'
+require 'logger'
 
 RSpec.describe SimpleRESTClient do
   let(:address) { 'example.com' }
@@ -376,7 +377,7 @@ RSpec.describe SimpleRESTClient do
     it 'passes net_http_start_opt to Net::HTTP.start' do
       stub_request(http_method, "#{address}#{path}")
       expect(Net::HTTP)
-        .to receive(:start)
+        .to receive(:new)
         .with(any_args, subject.net_http_start_opt)
         .and_call_original
       subject.request(http_method, path)
@@ -493,6 +494,29 @@ RSpec.describe SimpleRESTClient do
             expect(response).to be_a(Net::HTTPResponse)
             expect(response.body).to eq(body)
           end
+        end
+      end
+    end
+    context 'logging' do
+      let(:logger) { instance_spy(Logger) }
+      subject { described_class.new(address: address, logger: logger) }
+      context 'request successful' do
+        before(:example) { stub_request(:get, "#{address}:#{path}") }
+        it 'logs request' do
+        end
+      end
+      context 'request failed' do
+        let(:error_status_code) { 500 }
+        before(:example) do
+          stub_request(:get, "#{address}:#{path}")
+            .and_return(status: error_status_code)
+        end
+        it 'logs request and error' do
+          expect(logger).to receive(:info)
+            .with("GET http://#{address}#{path}")
+          expect(logger).to receive(:error)
+            .with("Failed to GET http://#{address}#{path}: Expected HTTP status code to be successful, but got #{error_status_code}.")
+          subject.get(path) rescue described_class.const_get(:UnexpectedStatusCode)
         end
       end
     end

@@ -63,6 +63,8 @@ class SimpleRESTClient
   attr_reader :post_request_hooks
   # List of hooks that are called around each request.
   attr_reader :around_request_hook
+  # Logger instance where to log to.
+  attr_reader :logger
 
   # Creates a new HTTP client. Please refer to each attribute's documentation for details and default values.
   def initialize(
@@ -74,7 +76,8 @@ class SimpleRESTClient
     net_http_start_opt:           DEFAULT_NET_HTTP_START_OPT.dup,
     username:                     nil,
     password:                     nil,
-    default_expected_status_code: DEFAULT_EXPECTED_STATUS_CODE.dup
+    default_expected_status_code: DEFAULT_EXPECTED_STATUS_CODE.dup,
+    logger:                       nil
     )
     @address                        = address
     @port                           = if port
@@ -92,11 +95,13 @@ class SimpleRESTClient
     @username                       = username
     @password                       = password
     @default_expected_status_code   = default_expected_status_code
+    @logger                         = logger
     @net_http                       = nil
     @pre_request_hooks              = []
     @post_request_hooks             = []
     @around_request_hooks           = []
     @around_request                 = proc { |block, request| block.call }
+    setup_logging
   end
 
   # Register given block at #pre_request_hooks.
@@ -264,7 +269,7 @@ class SimpleRESTClient
   # Returns a cached instance of Net::HTTP.
   def net_http
     return @net_http if @net_http
-    @net_http = Net::HTTP.start(address, port, net_http_start_opt)
+    @net_http = Net::HTTP.new(address, port, net_http_start_opt)
     ObjectSpace.define_finalizer( self, proc { @net_http.finish } )
     @net_http
   end
@@ -396,6 +401,26 @@ class SimpleRESTClient
           ret_value.force_encoding(charset)
         end
         ret_value
+      end
+    end
+  end
+
+  def log level, message
+    return unless logger
+    logger.send(level, message)
+  end
+
+  def setup_logging
+    return unless logger
+    add_pre_request_hook do |request|
+      log(:info, "#{request.method.upcase} #{request.uri}")
+    end
+    add_around_request_hook do |block, request|
+      begin
+        response = block.call
+      rescue
+        log(:error, "Failed to #{request.method.upcase} #{request.uri}: #{$!}")
+        raise $!
       end
     end
   end
