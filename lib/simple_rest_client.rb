@@ -179,7 +179,8 @@ class SimpleRESTClient
   # headers:: Request headers in form of a Hash. Must not conflict with #base_headers.
   # body / body_stream:: For requests tha supporting sending a body, use one of the two to define a payload.
   # expected_status_code:: Validate response's HTTP status-code. Can be given as a code number (<tt>200</tt>), Array of codes (<tt>[200, 201]</tt>), Range (<tt>(200..202)</tt>), one of <tt>:informational</tt>, <tt>:successful</tt>, <tt>:redirection</tt>, <tt>:client_error</tt>, <tt>:server_error</tt> or response class (Net::HTTPSuccess). To disable status code validation, set to <tt>nil</tt>.
-  # net_http_attrs: Hash with attributes of #net_http to change only for this request. Useful for setting up Net::HTTP#read_timeout only for slow requests.
+  # \net_http_attrs:: Hash with attributes of #net_http to change only for this request. Useful for setting up Net::HTTP#read_timeout only for slow requests.
+  # To use Net::HTTPResponse#read_body, you must pass a block (otherwise, response body will be cached to memory).
   # :call-seq:
   # request(http_method, path, query: {}, headers: {}, body: nil, body_stream: nil, expected_status_code: :successful) {|http_response| ... } -> (block return value)
   # request(http_method, path, query: {}, headers: {}, body: nil, body_stream: nil, expected_status_code: :successful) -> Net::HTTPResponse
@@ -462,7 +463,7 @@ class SimpleRESTClient
         original_read_body.call(dest, &final_block)
       else
         ret_value = original_read_body.call(dest)
-        if charset
+        if ret_value && charset
           dest.force_encoding(charset) if dest
           ret_value.force_encoding(charset)
         end
