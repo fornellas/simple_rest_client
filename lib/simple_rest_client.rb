@@ -207,16 +207,104 @@ class SimpleRESTClient
     end
   end
 
+  # Performs a generic HTTP method request, and return its parsed JSON body.
+  # The request will set the <tt>Accept</tt> header to <tt>application/json</tt>, and will validate its response <tt>content-type</tt>.
+  #
+  # Will raise UnexpectedContentType if response is not <tt>application/json</tt>.
+  # :call-seq:
+  # request_json(http_method, path, *request_opts) {|json_hash| ... } -> (block return value)
+  # request_json(http_method, path, *request_opts) -> json_hash
+  def request_json http_method, path, *request_opts
+    expected_content_type = 'application/json'
+    opts = {headers: {'accept' => expected_content_type}}
+    opts.merge!(request_opts.first) unless request_opts.empty?
+    response = request(http_method, path, opts)
+    unless response.content_type == expected_content_type
+      raise UnexpectedContentType.new(response, expected_content_type)
+    end
+    json_hash = JSON.parse(response.body)
+    if block_given?
+      yield json_hash
+    else
+      json_hash
+    end
+  end
+
+  # :section: JSON methods
+
   # Define a instance method for given HTTP request method.
-  def self.http_method http_method # :nodoc:
+  def self.http_method_json http_method # :nodoc:
     self.class_eval do
-      define_method(http_method) do |*args, &block|
-        request(http_method, *args, &block)
+      define_method(:"#{http_method}_json") do |path, *request_opts, &block|
+        request_json(http_method, path, *request_opts, &block)
       end
     end
   end
 
+  ##
+  # :method: get_json
+  # Perform a GET request, and return its parsed JSON body.
+  # It is a wrapper around #request_json method, and accepts the same arguments.
+  # :call-seq:
+  # get_json(path, *request_opts) {|json_hash| ... } -> (block return value)
+  # get_json(path, *request_opts) -> json_hash
+  http_method_json :get
+
+  ##
+  # :method: delete_json
+  # Perform a DELETE request, and return its parsed JSON body.
+  # It is a wrapper around #request_json method, and accepts the same arguments.
+  # :call-seq:
+  # delete_json(path, *request_opts) {|json_hash| ... } -> (block return value)
+  # delete_json(path, *request_opts) -> json_hash
+  http_method_json :delete
+
+  ##
+  # :method: options_json
+  # Perform a OPTIONS request, and return its parsed JSON body.
+  # It is a wrapper around #request_json method, and accepts the same arguments.
+  # :call-seq:
+  # options_json(path, *request_opts) {|json_hash| ... } -> (block return value)
+  # options_json(path, *request_opts) -> json_hash
+  http_method_json :options
+
+  ##
+  # :method: post_json
+  # Perform a POST request, and return its parsed JSON body.
+  # It is a wrapper around #request_json method, and accepts the same arguments.
+  # :call-seq:
+  # post_json(path, *request_opts) {|json_hash| ... } -> (block return value)
+  # post_json(path, *request_opts) -> json_hash
+  http_method_json :post
+
+  ##
+  # :method: put_json
+  # Perform a PUT request, and return its parsed JSON body.
+  # It is a wrapper around #request_json method, and accepts the same arguments.
+  # :call-seq:
+  # put_json(path, *request_opts) {|json_hash| ... } -> (block return value)
+  # put_json(path, *request_opts) -> json_hash
+  http_method_json :put
+
+  ##
+  # :method: patch_json
+  # Perform a PATCH request, and return its parsed JSON body.
+  # It is a wrapper around #request_json method, and accepts the same arguments.
+  # :call-seq:
+  # patch_json(path, *request_opts) {|json_hash| ... } -> (block return value)
+  # patch_json(path, *request_opts) -> json_hash
+  http_method_json :patch
+
   # :section: HTTP Methods
+
+  # Define a instance method for given HTTP request method.
+  def self.http_method http_method # :nodoc:
+    self.class_eval do
+      define_method(http_method) do |path, *request_opts, &block|
+        request(http_method, path, *request_opts, &block)
+      end
+    end
+  end
 
   # RFC7231 Hypertext Transfer Protocol (HTTP/1.1): Semantics and Content
 
@@ -224,49 +312,63 @@ class SimpleRESTClient
   # :method: get
   # Perform a GET request.
   # It is a wrapper around #request method, and accepts the same arguments.
-  # :call-seq: get(*request_args, &block)
+  # :call-seq:
+  # get(path, *request_opts) {|response| ... } -> (block return value)
+  # get(path, *request_opts) -> Net::HTTPResponse
   http_method :get
 
   ##
   # Perform a HEAD request.
   # It is a wrapper around #request method, and accepts the same arguments.
   # :method: head
-  # :call-seq: head(*request_args, &block)
+  # :call-seq:
+  # head(path, *request_opts) {|response| ... } -> (block return value)
+  # head(path, *request_opts) -> Net::HTTPResponse
   http_method :head
 
   ##
   # Perform a POST request.
   # It is a wrapper around #request method, and accepts the same arguments.
   # :method: post
-  # :call-seq: post(*request_args, &block)
+  # :call-seq:
+  # post(path, *request_opts) {|response| ... } -> (block return value)
+  # post(path, *request_opts) -> Net::HTTPResponse
   http_method :post
 
   ##
   # Perform a PUT request.
   # It is a wrapper around #request method, and accepts the same arguments.
   # :method: put
-  # :call-seq: put(*request_args, &block)
+  # :call-seq:
+  # put(path, *request_opts) {|response| ... } -> (block return value)
+  # put(path, *request_opts) -> Net::HTTPResponse
   http_method :put
 
   ##
   # Perform a DELETE request.
   # It is a wrapper around #request method, and accepts the same arguments.
   # :method: delete
-  # :call-seq: delete(*request_args, &block)
+  # :call-seq:
+  # delete(path, *request_opts) {|response| ... } -> (block return value)
+  # delete(path, *request_opts) -> Net::HTTPResponse
   http_method :delete
 
   ##
   # Perform a OPTIONS request.
   # It is a wrapper around #request method, and accepts the same arguments.
   # :method: options
-  # :call-seq: options(*request_args, &block)
+  # :call-seq:
+  # options(path, *request_opts) {|response| ... } -> (block return value)
+  # options(path, *request_opts) -> Net::HTTPResponse
   http_method :options
 
   ##
   # Perform a TRACE request.
   # It is a wrapper around #request method, and accepts the same arguments.
   # :method: trace
-  # :call-seq: trace(*request_args, &block)
+  # :call-seq:
+  # trace(path, *request_opts) {|response| ... } -> (block return value)
+  # trace(path, *request_opts) -> Net::HTTPResponse
   http_method :trace
 
   # RFC5789 PATCH Method for HTTP
@@ -274,7 +376,9 @@ class SimpleRESTClient
   ##
   # Perform a PATCH request.
   # It is a wrapper around #request method, and accepts the same arguments.
-  # :call-seq: patch(*request_args, &block)
+  # :call-seq:
+  # patch(path, *request_opts) {|response| ... } -> (block return value)
+  # patch(path, *request_opts) -> Net::HTTPResponse
   # :method: patch
   http_method :patch
 
@@ -289,6 +393,18 @@ class SimpleRESTClient
     end
     def to_s
       "Expected HTTP status code to be #{expected_status_code.inspect}, but got #{response.code}."
+    end
+  end
+
+  # Raised when an unexpected content type was returned.
+  class UnexpectedContentType < RuntimeError
+    attr_reader :response, :expected_content_type
+    def initialize expected_content_type, response
+      @expected_content_type = expected_content_type
+      @response             = response
+    end
+    def to_s
+      "Expected content type to be #{expected_content_type.inspect}, but got #{response['content-type'].inspect}."
     end
   end
 
