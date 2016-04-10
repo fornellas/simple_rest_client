@@ -377,21 +377,27 @@ class SimpleRESTClient
     @pre_request_hooks.each do |pre_request_hook|
       pre_request_hook.call(request)
     end
-    net_http.request(request) do |response|
-      validate_status_code(response, expected_status_code)
-      fix_response_encoding(response)
-      @post_request_hooks.each do |post_request_hook|
-        post_request_hook.call(response, request)
-      end
-      if block
+    if block
+      net_http.request(request) do |response|
+        validate_response(request, response, expected_status_code)
         return block.call(response)
-      else
-        return response
       end
+    else
+      response = net_http.request(request)
+      validate_response(request, response, expected_status_code)
+      return response
     end
   end
 
-  def validate_status_code response, expected_status_code
+  def validate_response request, response, expected_status_code
+    validate_response_status_code(response, expected_status_code)
+    fix_response_encoding(response)
+    @post_request_hooks.each do |post_request_hook|
+      post_request_hook.call(response, request)
+    end
+  end
+
+  def validate_response_status_code response, expected_status_code
     return unless expected_status_code
     if Class === expected_status_code
       unless expected_status_code === response
