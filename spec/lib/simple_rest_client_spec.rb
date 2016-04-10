@@ -35,7 +35,7 @@ RSpec.describe SimpleRESTClient do
           subject do
             described_class.new(
               address: address,
-              net_http_start_opt: {
+              net_http_attrs: {
                 use_ssl: true,
               }
             )
@@ -46,11 +46,11 @@ RSpec.describe SimpleRESTClient do
         end
       end
     end
-    context '#net_http_start_opt' do
+    context '#net_http_attrs' do
       context 'defaults' do
         context 'not specified' do
-          it 'is set to DEFAULT_NET_HTTP_START_OPT' do
-            expect(subject.net_http_start_opt).to eq(described_class.const_get(:DEFAULT_NET_HTTP_START_OPT))
+          it 'is set to DEFAULT_NET_HTTP_ATTRS' do
+            expect(subject.net_http_attrs).to eq(described_class.const_get(:DEFAULT_NET_HTTP_ATTRS))
           end
         end
         context 'port is 443' do
@@ -60,7 +60,7 @@ RSpec.describe SimpleRESTClient do
               described_class.new(address: address, port: port)
             end
             it 'sets :use_ssl' do
-              expect(subject.net_http_start_opt[:use_ssl]).to eq(true)
+              expect(subject.net_http_attrs[:use_ssl]).to eq(true)
             end
           end
           context ':use_ssl specified' do
@@ -69,13 +69,13 @@ RSpec.describe SimpleRESTClient do
               described_class.new(
                 address: address,
                 port: port,
-                net_http_start_opt: {
+                net_http_attrs: {
                   use_ssl: use_ssl_value
                 }
               )
             end
             it 'keeps :use_ssl value' do
-              expect(subject.net_http_start_opt[:use_ssl]).to eq(use_ssl_value)
+              expect(subject.net_http_attrs[:use_ssl]).to eq(use_ssl_value)
             end
           end
         end
@@ -374,12 +374,11 @@ RSpec.describe SimpleRESTClient do
         end
       end
     end
-    it 'passes net_http_start_opt to Net::HTTP.start' do
+    it 'passes net_http_attrs to Net::HTTP.start' do
       stub_request(http_method, "#{address}#{path}")
-      expect(Net::HTTP)
-        .to receive(:new)
-        .with(any_args, subject.net_http_start_opt)
-        .and_call_original
+      subject.net_http_attrs.each do |key, value|
+        expect(subject.net_http.send(key)).to eq(value)
+      end
       subject.request(http_method, path)
     end
     # Test workarounds for https://bugs.ruby-lang.org/issues/2567

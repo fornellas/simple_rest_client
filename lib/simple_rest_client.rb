@@ -3,6 +3,7 @@ require 'uri'
 require 'net/http'
 require 'net/https'
 require 'json'
+require_relative 'simple_rest_client/version'
 
 # Base class to help easily create REST HTTP clients.
 #
@@ -29,8 +30,8 @@ require 'json'
 # You can define your own methods, regarding your own problem domain, to ease access to any resource in your API. Make use of any of the HTTP verb methods provided to easily interface with your API.
 class SimpleRESTClient
 
-  # Default value for #net_http_start_opt.
-  DEFAULT_NET_HTTP_START_OPT = {
+  # Default value for #net_http_attrs.
+  DEFAULT_NET_HTTP_ATTRS = {
     open_timeout: 5,
     read_timeout: 30,
     ssl_timeout:  10,
@@ -51,7 +52,7 @@ class SimpleRESTClient
   # Hostname or IP address of the server.
   attr_reader :address
 
-  # Port of the server. Defaults to 80 if HTTP and 443 if HTTPS (depends on <tt>net_http_start_opt[:use_ssl] == true</tt>).
+  # Port of the server. Defaults to 80 if HTTP and 443 if HTTPS (depends on <tt>net_http_attrs[:use_ssl] == true</tt>).
   attr_reader :port
 
   # Base path to prefix all requests with. Must be URL encoded when needed.
@@ -63,8 +64,8 @@ class SimpleRESTClient
   # Base headers to be used in all requests. Must be provided as a Hash.
   attr_reader :base_headers
 
-  # Hash opt to be used with with Net::HTTP.start. Defaults to DEFAULT_NET_HTTP_START_OPT. If #port is 443 and :use_ssl is not specified, it will be set to true.
-  attr_reader :net_http_start_opt
+  # Hash with default attributes for Net::HTTP. Defaults to DEFAULT_NET_HTTP_ATTRS. If #port is 443 and :use_ssl is not specified, it will be set to true.
+  attr_reader :net_http_attrs
 
   # Username for basic auth.
   attr_reader :username
@@ -96,7 +97,7 @@ class SimpleRESTClient
     base_path:                    nil,
     base_query:                   {},
     base_headers:                 {},
-    net_http_start_opt:           DEFAULT_NET_HTTP_START_OPT.dup,
+    net_http_attrs:               DEFAULT_NET_HTTP_ATTRS.dup,
     username:                     nil,
     password:                     nil,
     default_expected_status_code: DEFAULT_EXPECTED_STATUS_CODE.dup,
@@ -106,14 +107,14 @@ class SimpleRESTClient
     @port                           = if port
                                         port
                                       else
-                                        net_http_start_opt[:use_ssl] ? 443 : 80
+                                        net_http_attrs[:use_ssl] ? 443 : 80
                                       end
     @base_path                      = base_path
     @base_query                     = base_query
     @base_headers                   = base_headers
-    @net_http_start_opt             = net_http_start_opt
-    unless @net_http_start_opt.has_key?(:use_ssl)
-      @net_http_start_opt[:use_ssl] = true if port == 443
+    @net_http_attrs                 = net_http_attrs
+    unless @net_http_attrs.has_key?(:use_ssl)
+      @net_http_attrs[:use_ssl] = true if port == 443
     end
     @username                       = username
     @password                       = password
@@ -125,13 +126,15 @@ class SimpleRESTClient
     @around_request_hooks           = []
     @around_request                 = proc { |block, request| block.call }
     setup_logging
+    yield self if block_given?
   end
 
 
   # Instance of Net::HTTP.
   def net_http
     return @net_http if @net_http
-    @net_http = Net::HTTP.new(address, port, net_http_start_opt)
+    @net_http = Net::HTTP.new(address, port)
+    @net_http_attrs.each { |key, value| @net_http.send(:"#{key}=", value) }
     ObjectSpace.define_finalizer( self, proc { @net_http.finish } )
     @net_http
   end
@@ -176,7 +179,7 @@ class SimpleRESTClient
   # headers:: Request headers in form of a Hash. Must not conflict with #base_headers.
   # body / body_stream:: For requests tha supporting sending a body, use one of the two to define a payload.
   # expected_status_code:: Validate response's HTTP status-code. Can be given as a code number (<tt>200</tt>), Array of codes (<tt>[200, 201]</tt>), Range (<tt>(200..202)</tt>), one of <tt>:informational</tt>, <tt>:successful</tt>, <tt>:redirection</tt>, <tt>:client_error</tt>, <tt>:server_error</tt> or response class (Net::HTTPSuccess). To disable status code validation, set to <tt>nil</tt>.
-  # net_http_attrs: Hash with attributes of #net_http to change only for this request. Useful for setting up Net::HTTP#read_timeout only for specific slow requests.
+  # net_http_attrs: Hash with attributes of #net_http to change only for this request. Useful for setting up Net::HTTP#read_timeout only for slow requests.
   # :call-seq:
   # request(http_method, path, query: {}, headers: {}, body: nil, body_stream: nil, expected_status_code: :successful) {|http_response| ... } -> (block return value)
   # request(http_method, path, query: {}, headers: {}, body: nil, body_stream: nil, expected_status_code: :successful) -> Net::HTTPResponse
@@ -311,7 +314,7 @@ class SimpleRESTClient
       query: URI.encode_www_form(merged_query),
     ) unless merged_query.empty?
     # Build
-    ( net_http_start_opt[:use_ssl] ? URI::HTTPS : URI::HTTP ).build(build_args)
+    ( net_http_attrs[:use_ssl] ? URI::HTTPS : URI::HTTP ).build(build_args)
   end
 
   def build_request http_method, uri, headers, body, body_stream
@@ -343,7 +346,7 @@ class SimpleRESTClient
     end
     base_headers
       .merge(headers)
-      .merge('user-agent' => "#{self.class}/#{self.class.const_get(:VERSION)} (#{RUBY_DESCRIPTION}) Ruby")
+      .merge('user-agent' => "#{SimpleRESTClient}/#{SimpleRESTClient::VERSION} (#{RUBY_DESCRIPTION}) Ruby")
       .map{|k,v| [k.to_s, v.to_s]}
       .to_h
   end
