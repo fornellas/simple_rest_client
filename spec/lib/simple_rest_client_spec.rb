@@ -162,6 +162,7 @@ RSpec.describe SimpleRESTClient do
     end
   end
   context 'JSON fetch methods' do
+    let(:request_parameters) { {query: query, headers: headers} }
     [
       :get,
       :delete,
@@ -170,8 +171,19 @@ RSpec.describe SimpleRESTClient do
       :put,
       :patch,
     ].each do |http_method|
-      xexample "\##{http_method}_json" do
-
+      context "\##{http_method}_json" do
+        it 'calls #request' do
+          stub_request(http_method, "#{address}#{path}")
+            .with(request_parameters)
+            .and_return(
+              headers: {'Content-Type' => 'application/json'},
+              body: JSON.generate('key1' => 'value1'),
+            )
+          expect(subject)
+            .to receive(:request).with(http_method, path, request_parameters)
+            .and_call_original
+          subject.send(:"#{http_method}_json", path, request_parameters)
+        end
       end
     end
   end
