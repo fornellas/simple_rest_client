@@ -95,36 +95,44 @@ RSpec.describe SimpleRESTClient do
       :patch
     ].each do |http_method|
       request_has_body = Net::HTTP.const_get(http_method.downcase.capitalize)
-      .const_get(:REQUEST_HAS_BODY)
-      if request_has_body
-        context "\##{http_method}" do
+        .const_get(:REQUEST_HAS_BODY)
+      context "\##{http_method}" do
+        it 'calls #request' do
+          stub_request(http_method, "#{address}#{path}")
+            .with(request_parameters)
+          expect(subject)
+            .to receive(:request).with(http_method, path, request_parameters)
+            .and_call_original
+          subject.send(http_method, path, request_parameters)
+        end
+        if request_has_body
           it "works with static body" do
             request_parameters.merge!(body: body)
             request = stub_request(http_method, "#{address}#{path}")
-            .with(request_parameters)
+              .with(request_parameters)
             expect(subject)
-            .to receive(:request)
-            .with(http_method, path, request_parameters)
-            .and_call_original
+              .to receive(:request)
+              .with(http_method, path, request_parameters)
+              .and_call_original
             subject.send(http_method, path, request_parameters)
             expect(request).to have_been_requested
           end
           it "works with streaming body" do
             request = stub_request(http_method, "#{address}#{path}")
-            .with(request_parameters.merge(body: body_stream_text))
+              .with(request_parameters.merge(body: body_stream_text))
             body_stream_arg = body_stream(body_stream_text)
             expect(subject)
-            .to receive(:request)
-            .with(
-            http_method,
-            path,
-            request_parameters.merge(body_stream: body_stream_arg)
-            )
-            .and_call_original
+              .to receive(:request)
+              .with(
+                http_method,
+                  path,
+                  request_parameters.merge(body_stream: body_stream_arg)
+              )
+              .and_call_original
             subject.send(
-            http_method,
-            path,
-            request_parameters.merge(body_stream: body_stream_arg)
+              http_method,
+              path,
+              request_parameters.merge(body_stream: body_stream_arg)
             )
             expect(request).to have_been_requested
           end
@@ -138,20 +146,32 @@ RSpec.describe SimpleRESTClient do
             subject.send(http_method, path, request_parameters)
             expect(request).to have_been_requested
           end
-        end
-      else
-        context "\##{http_method}" do
+        else
           it "performs request" do
             request = stub_request(http_method, "#{address}#{path}")
-            .with(request_parameters)
+              .with(request_parameters)
             expect(subject)
-            .to receive(:request)
-            .with(http_method, path, request_parameters)
-            .and_call_original
+              .to receive(:request)
+              .with(http_method, path, request_parameters)
+              .and_call_original
             subject.send(http_method, path, request_parameters)
             expect(request).to have_been_requested
           end
         end
+      end
+    end
+  end
+  context 'JSON fetch methods' do
+    [
+      :get,
+      :delete,
+      :options,
+      :post,
+      :put,
+      :patch,
+    ].each do |http_method|
+      xexample "\##{http_method}_json" do
+
       end
     end
   end
