@@ -208,7 +208,9 @@ class SimpleRESTClient
   end
 
   # Performs a generic HTTP method request, and return its parsed JSON body.
-  # The request will set the <tt>Accept</tt> header to <tt>application/json</tt>, and will validate its response <tt>content-type</tt>.
+  # The request will set the <tt>Accept</tt> header to <tt>application/json</tt>, and will validate its response <tt>Content-Type</tt> header.
+  #
+  # This method is a wrap around #request method, and accepts the same arguments.
   #
   # Will raise UnexpectedContentType if response is not <tt>application/json</tt>.
   # :call-seq:
@@ -216,9 +218,18 @@ class SimpleRESTClient
   # request_json(http_method, path, *request_opts) -> json_hash
   def request_json http_method, path, *request_opts
     expected_content_type = 'application/json'
-    opts = {headers: {'accept' => expected_content_type}}
-    opts.merge!(request_opts.first) unless request_opts.empty?
-    response = request(http_method, path, opts)
+    final_request_opts = if request_opts.empty?
+        {headers: {'accept' => expected_content_type}}
+      else
+        dup_request_opts = request_opts.first.dup
+        if dup_request_opts.has_key?(:headers)
+          dup_request_opts[:headers].merge!('accept' => expected_content_type)
+        else
+          dup_request_opts[:headers] = {'accept' => expected_content_type}
+        end
+        dup_request_opts
+      end
+    response = request(http_method, path, final_request_opts)
     unless response.content_type == expected_content_type
       raise UnexpectedContentType.new(response, expected_content_type)
     end
@@ -228,6 +239,12 @@ class SimpleRESTClient
     else
       json_hash
     end
+  end
+
+  # :call-seq:
+  # request_and_fetch_json(http_method, path, *request_opts) {|json_hash| ... } -> (block return value)
+  # request_and_fetch_json(http_method, path, *request_opts) -> json_hash
+  def request_and_fetch_json http_method, path, *request_opts
   end
 
   # :section: JSON methods

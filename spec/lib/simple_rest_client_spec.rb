@@ -560,4 +560,86 @@ RSpec.describe SimpleRESTClient do
       end
     end
   end
+  context '#request_json' do
+    let(:json_hash) { {'key1' => 'value1', 'key2' => 'value2'} }
+    let(:json) { JSON.generate(json_hash) }
+    let(:http_method) { :get }
+    let(:expected_status_code) { 200 }
+    context 'request_opts not set' do
+      it 'sets Accept header' do
+        request = stub_request(http_method, "#{address}#{path}")
+          .with(headers: default_headers.merge('Accept'=>'application/json'))
+          .and_return(
+             headers: {'Content-Type' => 'application/json'},
+             status: expected_status_code,
+             body: json,
+          )
+        subject.request_json(http_method, path)
+        expect(request).to have_been_requested
+      end
+    end
+    context 'valid Content-Type response' do
+      let!(:request) do
+        stub_request(http_method, "#{address}#{path}")
+          .with(
+            headers: default_headers
+              .merge(headers)
+              .merge('Accept' => 'application/json'),
+            query: query,
+          )
+          .and_return(
+            headers: {'Content-Type' => 'application/json'},
+            status: expected_status_code,
+            body: json,
+          )
+      end
+      it 'calls #request' do
+        expect(subject)
+          .to receive(:request)
+          .with(
+            http_method,
+            path,
+            headers: headers.merge('accept' => 'application/json'),
+            query: query
+          )
+          .and_call_original
+        subject.request_json(http_method, path, headers: headers, query: query)
+      end
+      it 'sets Accept header' do
+        subject.request_json(http_method, path, headers: headers, query: query)
+        expect(request).to have_been_requested
+      end
+      it 'returns parsed JSON body' do
+        expect(
+          subject.request_json(http_method, path, headers: headers, query: query)
+        ).to eq(json_hash)
+      end
+      it 'does not raise' do
+        expect do
+          subject.request_json(http_method, path, headers: headers, query: query)
+        end.not_to raise_error
+      end
+    end
+    context 'invalid Content-Type response' do
+      let!(:request) do
+        stub_request(http_method, "#{address}#{path}")
+        .with(
+          headers: default_headers
+            .merge(headers)
+            .merge('Accept' => 'application/json'),
+          query: query,
+        )
+        .and_return(
+          headers: {'Content-Type' => 'text/html'},
+          status: expected_status_code,
+          body: json,
+        )
+      end
+      it 'raises UnexpectedContentType' do
+        expect do
+          subject.request_json(http_method, path, headers: headers, query: query)
+        end.to raise_error(described_class.const_get(:UnexpectedContentType))
+      end
+    end
+  end
 end
