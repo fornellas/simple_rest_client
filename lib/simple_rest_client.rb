@@ -282,32 +282,6 @@ class SimpleRESTClient
   # :method: patch
   http_method :patch
 
-  # :section:
-
-  # Raised when an unexpected HTTP status code was returned.
-  class UnexpectedStatusCode < RuntimeError
-    attr_reader :response, :expected_status_code
-    def initialize expected_status_code, response
-      @expected_status_code = expected_status_code
-      @response             = response
-    end
-    def to_s
-      "Expected HTTP status code to be #{expected_status_code.inspect}, but got #{response.code}."
-    end
-  end
-
-  # Raised when an unexpected content type was returned.
-  class UnexpectedContentType < RuntimeError
-    attr_reader :response, :expected_content_type
-    def initialize expected_content_type, response
-      @expected_content_type = expected_content_type
-      @response             = response
-    end
-    def to_s
-      "Expected content type to be #{expected_content_type.inspect}, but got #{response['content-type'].inspect}."
-    end
-  end
-
   private
 
   def build_uri path='/', query={}
