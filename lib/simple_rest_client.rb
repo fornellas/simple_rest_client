@@ -213,8 +213,8 @@ class SimpleRESTClient
   # Perform a GET request.
   # It is a wrapper around #request method, and accepts the same arguments.
   # :call-seq:
-  # get(path, *request_opts) {|response| ... } -> (block return value)
-  # get(path, *request_opts) -> Net::HTTPResponse
+  # get(path, *request_opts) {|simple_rest_client_response| ... } -> (block return value)
+  # get(path, *request_opts) -> SimpleRESTClient::Response
   http_method :get
 
   ##
@@ -222,8 +222,8 @@ class SimpleRESTClient
   # It is a wrapper around #request method, and accepts the same arguments.
   # :method: head
   # :call-seq:
-  # head(path, *request_opts) {|response| ... } -> (block return value)
-  # head(path, *request_opts) -> Net::HTTPResponse
+  # head(path, *request_opts) {|simple_rest_client_response| ... } -> (block return value)
+  # head(path, *request_opts) -> SimpleRESTClient::Response
   http_method :head
 
   ##
@@ -231,8 +231,8 @@ class SimpleRESTClient
   # It is a wrapper around #request method, and accepts the same arguments.
   # :method: post
   # :call-seq:
-  # post(path, *request_opts) {|response| ... } -> (block return value)
-  # post(path, *request_opts) -> Net::HTTPResponse
+  # post(path, *request_opts) {|simple_rest_client_response| ... } -> (block return value)
+  # post(path, *request_opts) -> SimpleRESTClient::Response
   http_method :post
 
   ##
@@ -240,8 +240,8 @@ class SimpleRESTClient
   # It is a wrapper around #request method, and accepts the same arguments.
   # :method: put
   # :call-seq:
-  # put(path, *request_opts) {|response| ... } -> (block return value)
-  # put(path, *request_opts) -> Net::HTTPResponse
+  # put(path, *request_opts) {|simple_rest_client_response| ... } -> (block return value)
+  # put(path, *request_opts) -> SimpleRESTClient::Response
   http_method :put
 
   ##
@@ -249,8 +249,8 @@ class SimpleRESTClient
   # It is a wrapper around #request method, and accepts the same arguments.
   # :method: delete
   # :call-seq:
-  # delete(path, *request_opts) {|response| ... } -> (block return value)
-  # delete(path, *request_opts) -> Net::HTTPResponse
+  # delete(path, *request_opts) {|simple_rest_client_response| ... } -> (block return value)
+  # delete(path, *request_opts) -> SimpleRESTClient::Response
   http_method :delete
 
   ##
@@ -258,8 +258,8 @@ class SimpleRESTClient
   # It is a wrapper around #request method, and accepts the same arguments.
   # :method: options
   # :call-seq:
-  # options(path, *request_opts) {|response| ... } -> (block return value)
-  # options(path, *request_opts) -> Net::HTTPResponse
+  # options(path, *request_opts) {|simple_rest_client_response| ... } -> (block return value)
+  # options(path, *request_opts) -> SimpleRESTClient::Response
   http_method :options
 
   ##
@@ -267,8 +267,8 @@ class SimpleRESTClient
   # It is a wrapper around #request method, and accepts the same arguments.
   # :method: trace
   # :call-seq:
-  # trace(path, *request_opts) {|response| ... } -> (block return value)
-  # trace(path, *request_opts) -> Net::HTTPResponse
+  # trace(path, *request_opts) {|simple_rest_client_response| ... } -> (block return value)
+  # trace(path, *request_opts) -> SimpleRESTClient::Response
   http_method :trace
 
   # RFC5789 PATCH Method for HTTP
@@ -277,8 +277,8 @@ class SimpleRESTClient
   # Perform a PATCH request.
   # It is a wrapper around #request method, and accepts the same arguments.
   # :call-seq:
-  # patch(path, *request_opts) {|response| ... } -> (block return value)
-  # patch(path, *request_opts) -> Net::HTTPResponse
+  # patch(path, *request_opts) {|simple_rest_client_response| ... } -> (block return value)
+  # patch(path, *request_opts) -> SimpleRESTClient::Response
   # :method: patch
   http_method :patch
 
