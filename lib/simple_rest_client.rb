@@ -82,7 +82,7 @@ class SimpleRESTClient
   # List of hooks that are called after each request.
   attr_reader :post_request_hooks
 
-  # List of hooks that are called around each request.
+  # Around request hook.
   attr_reader :around_request_hook
 
   # Logger instance where to log to.
@@ -123,8 +123,7 @@ class SimpleRESTClient
     @net_http                       = nil
     @pre_request_hooks              = []
     @post_request_hooks             = []
-    @around_request_hooks           = []
-    @around_request                 = proc { |block, request| block.call }
+    @around_request_hook            = proc { |block, request| block.call }
     setup_logging
     yield self if block_given?
   end
@@ -161,8 +160,8 @@ class SimpleRESTClient
   #  end
   def add_around_request_hook &new_block # :yields: block, request
     raise ArgumentError, "A block must be provided!" unless new_block
-    old_around_block = @around_request
-    @around_request = proc do |block, request|
+    old_around_block = @around_request_hook
+    @around_request_hook = proc do |block, request|
       old_around_block.call(
         proc{new_block.call(block, request)},
         request
@@ -198,7 +197,7 @@ class SimpleRESTClient
     uri = build_uri(path, query)
     request = build_request(http_method, uri, headers, body, body_stream)
     with_net_http_attrs(net_http_attrs) do
-      @around_request.call(
+      @around_request_hook.call(
         proc do
           do_request(request, expected_status_code, &block)
         end,
