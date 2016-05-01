@@ -2,7 +2,7 @@ require 'erb'
 require 'uri'
 require 'net/http'
 require 'net/https'
-require 'json'
+require_relative 'simple_rest_client/response'
 require_relative 'simple_rest_client/version'
 
 # Base class to help easily create REST HTTP clients.
@@ -37,18 +37,6 @@ class SimpleRESTClient
     ssl_timeout:  10,
   }.freeze
 
-  # Default value for #default_expected_status_code
-  DEFAULT_EXPECTED_STATUS_CODE           = Hash.new(:successful)
-  DEFAULT_EXPECTED_STATUS_CODE[:get]     = 200
-  DEFAULT_EXPECTED_STATUS_CODE[:head]    = 200
-  DEFAULT_EXPECTED_STATUS_CODE[:post]    = [200, 201, 202, 204, 205]
-  DEFAULT_EXPECTED_STATUS_CODE[:put]     = [200, 201, 202, 204, 205]
-  DEFAULT_EXPECTED_STATUS_CODE[:delete]  = [200, 202, 204]
-  DEFAULT_EXPECTED_STATUS_CODE[:options] = [200, 204]
-  DEFAULT_EXPECTED_STATUS_CODE[:trace]   = 200
-  DEFAULT_EXPECTED_STATUS_CODE[:patch]   = [200, 201, 202, 204, 205]
-  DEFAULT_EXPECTED_STATUS_CODE.freeze
-
   # Hostname or IP address of the server.
   attr_reader :address
 
@@ -72,6 +60,7 @@ class SimpleRESTClient
 
   # Password for basic auth.
   attr_reader :password
+
   # Hash with default values for #request. Keys are Symbols to HTTP methods (eg: <tt>:get</tt>), values are anything accepted by #request's expected_status_code parameter.
   # General purpose defaults are defined at DEFAULT_EXPECTED_STATUS_CODE.
   attr_reader :default_expected_status_code
@@ -100,7 +89,7 @@ class SimpleRESTClient
     net_http_attrs:               DEFAULT_NET_HTTP_ATTRS.dup,
     username:                     nil,
     password:                     nil,
-    default_expected_status_code: DEFAULT_EXPECTED_STATUS_CODE.dup,
+    default_expected_status_code: SimpleRESTClient::Response::DEFAULT_EXPECTED_STATUS_CODE.dup,
     logger:                       nil
   )
     @address                        = address
@@ -177,12 +166,12 @@ class SimpleRESTClient
   # query:: URI query, in form of a Hash.
   # headers:: Request headers in form of a Hash. Must not conflict with #base_headers.
   # body / body_stream:: For requests tha supporting sending a body, use one of the two to define a payload.
-  # expected_status_code:: Validate response's HTTP status-code. Can be given as a code number (<tt>200</tt>), Array of codes (<tt>[200, 201]</tt>), Range (<tt>(200..202)</tt>), one of <tt>:informational</tt>, <tt>:successful</tt>, <tt>:redirection</tt>, <tt>:client_error</tt>, <tt>:server_error</tt> or response class (Net::HTTPSuccess). To disable status code validation, set to <tt>nil</tt>.
+  # expected_status_code:: Status-code validation. See SimpleRESTClient::Response#expected_status_code.
   # \net_http_attrs:: Hash with attributes of #net_http to change only for this request. Useful for setting up Net::HTTP#read_timeout only for slow requests.
   # To use Net::HTTPResponse#read_body, you must pass a block (otherwise, response body will be cached to memory).
   # :call-seq:
-  # request(http_method, path, query: {}, headers: {}, body: nil, body_stream: nil, expected_status_code: :successful) {|http_response| ... } -> (block return value)
-  # request(http_method, path, query: {}, headers: {}, body: nil, body_stream: nil, expected_status_code: :successful) -> Net::HTTPResponse
+  # request(http_method, path, query: {}, headers: {}, body: nil, body_stream: nil, expected_status_code: default_expected_status_code[http_method]) {|simple_rest_client_response| ... } -> (block return value)
+  # request(http_method, path, query: {}, headers: {}, body: nil, body_stream: nil, expected_status_code: default_expected_status_code[http_method]) -> SimpleRESTClient::Response
   def request(
     http_method,
     path,
@@ -205,111 +194,6 @@ class SimpleRESTClient
       )
     end
   end
-
-  # Performs a generic HTTP method request, and return its parsed JSON body.
-  # The request will set the <tt>Accept</tt> header to <tt>application/json</tt>, and will validate its response <tt>Content-Type</tt> header.
-  #
-  # This method is a wrap around #request method, and accepts the same arguments.
-  #
-  # Will raise UnexpectedContentType if response is not <tt>application/json</tt>.
-  # :call-seq:
-  # request_json(http_method, path, *request_opts) {|json_hash| ... } -> (block return value)
-  # request_json(http_method, path, *request_opts) -> json_hash
-  def request_json http_method, path, *request_opts
-    expected_content_type = 'application/json'
-    final_request_opts = if request_opts.empty?
-        {headers: {'accept' => expected_content_type}}
-      else
-        dup_request_opts = request_opts.first.dup
-        if dup_request_opts.has_key?(:headers)
-          dup_request_opts[:headers].merge!('accept' => expected_content_type)
-        else
-          dup_request_opts[:headers] = {'accept' => expected_content_type}
-        end
-        dup_request_opts
-      end
-    response = request(http_method, path, final_request_opts)
-    unless response.content_type == expected_content_type
-      raise UnexpectedContentType.new(response, expected_content_type)
-    end
-    json_hash = JSON.parse(response.body)
-    if block_given?
-      yield json_hash
-    else
-      json_hash
-    end
-  end
-
-  # :call-seq:
-  # request_and_fetch_json(http_method, path, *request_opts) {|json_hash| ... } -> (block return value)
-  # request_and_fetch_json(http_method, path, *request_opts) -> json_hash
-  def request_and_fetch_json http_method, path, *request_opts
-  end
-
-  # :section: JSON methods
-
-  # Define a instance method for given HTTP request method.
-  def self.http_method_json http_method # :nodoc:
-    self.class_eval do
-      define_method(:"#{http_method}_json") do |path, *request_opts, &block|
-        request_json(http_method, path, *request_opts, &block)
-      end
-    end
-  end
-
-  ##
-  # :method: get_json
-  # Perform a GET request, and return its parsed JSON body.
-  # It is a wrapper around #request_json method, and accepts the same arguments.
-  # :call-seq:
-  # get_json(path, *request_opts) {|json_hash| ... } -> (block return value)
-  # get_json(path, *request_opts) -> json_hash
-  http_method_json :get
-
-  ##
-  # :method: delete_json
-  # Perform a DELETE request, and return its parsed JSON body.
-  # It is a wrapper around #request_json method, and accepts the same arguments.
-  # :call-seq:
-  # delete_json(path, *request_opts) {|json_hash| ... } -> (block return value)
-  # delete_json(path, *request_opts) -> json_hash
-  http_method_json :delete
-
-  ##
-  # :method: options_json
-  # Perform a OPTIONS request, and return its parsed JSON body.
-  # It is a wrapper around #request_json method, and accepts the same arguments.
-  # :call-seq:
-  # options_json(path, *request_opts) {|json_hash| ... } -> (block return value)
-  # options_json(path, *request_opts) -> json_hash
-  http_method_json :options
-
-  ##
-  # :method: post_json
-  # Perform a POST request, and return its parsed JSON body.
-  # It is a wrapper around #request_json method, and accepts the same arguments.
-  # :call-seq:
-  # post_json(path, *request_opts) {|json_hash| ... } -> (block return value)
-  # post_json(path, *request_opts) -> json_hash
-  http_method_json :post
-
-  ##
-  # :method: put_json
-  # Perform a PUT request, and return its parsed JSON body.
-  # It is a wrapper around #request_json method, and accepts the same arguments.
-  # :call-seq:
-  # put_json(path, *request_opts) {|json_hash| ... } -> (block return value)
-  # put_json(path, *request_opts) -> json_hash
-  http_method_json :put
-
-  ##
-  # :method: patch_json
-  # Perform a PATCH request, and return its parsed JSON body.
-  # It is a wrapper around #request_json method, and accepts the same arguments.
-  # :call-seq:
-  # patch_json(path, *request_opts) {|json_hash| ... } -> (block return value)
-  # patch_json(path, *request_opts) -> json_hash
-  http_method_json :patch
 
   # :section: HTTP Methods
 
@@ -511,53 +395,35 @@ class SimpleRESTClient
       pre_request_hook.call(request)
     end
     if block
-      net_http.request(request) do |response|
-        validate_response(request, response, expected_status_code)
-        return block.call(response)
+      net_http.request(request) do |net_httpresponse|
+        return block.call(
+          process_response(
+            request,
+            net_httpresponse,
+            expected_status_code
+          )
+        )
       end
     else
-      response = net_http.request(request)
-      validate_response(request, response, expected_status_code)
-      return response
+      process_response(
+        request,
+        net_http.request(request),
+        expected_status_code
+      )
     end
   end
 
-  def validate_response request, response, expected_status_code
-    validate_response_status_code(response, expected_status_code)
-    fix_response_encoding(response)
+  def process_response request, net_httpresponse, expected_status_code
+    fix_response_encoding(net_httpresponse)
+    response = Response.new(
+      net_httpresponse: net_httpresponse,
+      expected_status_code: expected_status_code,
+    )
+    response.validate_status_code
     @post_request_hooks.each do |post_request_hook|
       post_request_hook.call(response, request)
     end
-  end
-
-  def validate_response_status_code response, expected_status_code
-    return unless expected_status_code
-    if Class === expected_status_code
-      unless expected_status_code === response
-        raise UnexpectedStatusCode.new(expected_status_code, response)
-      else
-        return
-      end
-    end
-    expected_status_code_list = case expected_status_code
-      when Integer          ; [expected_status_code]
-      when Array, Range     ; expected_status_code
-      when Symbol
-        case expected_status_code
-        when :informational ; (100...200)
-        when :successful    ; (200...300)
-        when :redirection   ; (300...400)
-        when :client_error  ; (400...500)
-        when :server_error  ; (500...600)
-        else
-          raise ArgumentError.new("Invalid expected_status_code symbol: #{expected_status_code.inspect}.")
-        end
-      else
-        raise ArgumentError, "Invalid expected_status_code argument: #{expected_status_code.inspect}."
-      end
-    unless expected_status_code_list.include?(Integer(response.code))
-      raise UnexpectedStatusCode.new(expected_status_code, response)
-    end
+    response
   end
 
   # Implement a solution for https://bugs.ruby-lang.org/issues/2567

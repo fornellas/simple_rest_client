@@ -161,32 +161,6 @@ RSpec.describe SimpleRESTClient do
       end
     end
   end
-  context 'JSON fetch methods' do
-    let(:request_parameters) { {query: query, headers: headers} }
-    [
-      :get,
-      :delete,
-      :options,
-      :post,
-      :put,
-      :patch,
-    ].each do |http_method|
-      context "\##{http_method}_json" do
-        it 'calls #request' do
-          stub_request(http_method, "#{address}#{path}")
-            .with(request_parameters)
-            .and_return(
-              headers: {'Content-Type' => 'application/json'},
-              body: JSON.generate('key1' => 'value1'),
-            )
-          expect(subject)
-            .to receive(:request).with(http_method, path, request_parameters)
-            .and_call_original
-          subject.send(:"#{http_method}_json", path, request_parameters)
-        end
-      end
-    end
-  end
   context '#request' do
     let(:http_method) { :mkcol }
     it 'can perform generic requests' do
@@ -316,7 +290,7 @@ RSpec.describe SimpleRESTClient do
             .to_return(status: real_status_code)
             expect do
               subject.get(path, expected_status_code: unexpected_status_code)
-            end.to raise_error(described_class.const_get(:UnexpectedStatusCode))
+            end.to raise_error(described_class.const_get(:Response).const_get(:UnexpectedStatusCode))
             expect(request).to have_been_requested
           end
         end
@@ -335,7 +309,7 @@ RSpec.describe SimpleRESTClient do
           .to_return(status: 300)
           expect do
             subject.get(path)
-          end.to raise_error(described_class.const_get(:UnexpectedStatusCode))
+          end.to raise_error(described_class.const_get(:Response).const_get(:UnexpectedStatusCode))
           expect(request).to have_been_requested
         end
       end
@@ -509,7 +483,7 @@ RSpec.describe SimpleRESTClient do
       example 'post request' do
         subject.add_post_request_hook do |response, request|
           @hook_calls += 1
-          expect(response).to be_a(Net::HTTPResponse)
+          expect(response).to be_a(described_class.const_get(:Response))
           expect(response.body).to eq(body)
           expect(request).to be_a(Net::HTTPRequest)
           expect(request.uri.path).to eq(path)
@@ -522,7 +496,7 @@ RSpec.describe SimpleRESTClient do
             expect(request).to be_a(Net::HTTPRequest)
             expect(request.uri.path).to eq(path)
             response = block.call
-            expect(response).to be_a(Net::HTTPResponse)
+            expect(response).to be_a(described_class.const_get(:Response))
             expect(response.body).to eq(body)
           end
         end
@@ -549,7 +523,7 @@ RSpec.describe SimpleRESTClient do
             .with("Failed to GET http://#{address}#{path}: Expected HTTP status code to be 200, but got #{error_status_code}.")
           begin
             subject.get(path)
-          rescue described_class.const_get(:UnexpectedStatusCode)
+          rescue described_class.const_get(:Response).const_get(:UnexpectedStatusCode)
           end
         end
       end
@@ -589,88 +563,6 @@ RSpec.describe SimpleRESTClient do
             read_timeout: override_read_timeout,
           }
         )
-      end
-    end
-  end
-  context '#request_json' do
-    let(:json_hash) { {'key1' => 'value1', 'key2' => 'value2'} }
-    let(:json) { JSON.generate(json_hash) }
-    let(:http_method) { :get }
-    let(:expected_status_code) { 200 }
-    context 'request_opts not set' do
-      it 'sets Accept header' do
-        request = stub_request(http_method, "#{address}#{path}")
-          .with(headers: default_headers.merge('Accept'=>'application/json'))
-          .and_return(
-             headers: {'Content-Type' => 'application/json'},
-             status: expected_status_code,
-             body: json,
-          )
-        subject.request_json(http_method, path)
-        expect(request).to have_been_requested
-      end
-    end
-    context 'valid Content-Type response' do
-      let!(:request) do
-        stub_request(http_method, "#{address}#{path}")
-          .with(
-            headers: default_headers
-              .merge(headers)
-              .merge('Accept' => 'application/json'),
-            query: query,
-          )
-          .and_return(
-            headers: {'Content-Type' => 'application/json'},
-            status: expected_status_code,
-            body: json,
-          )
-      end
-      it 'calls #request' do
-        expect(subject)
-          .to receive(:request)
-          .with(
-            http_method,
-            path,
-            headers: headers.merge('accept' => 'application/json'),
-            query: query
-          )
-          .and_call_original
-        subject.request_json(http_method, path, headers: headers, query: query)
-      end
-      it 'sets Accept header' do
-        subject.request_json(http_method, path, headers: headers, query: query)
-        expect(request).to have_been_requested
-      end
-      it 'returns parsed JSON body' do
-        expect(
-          subject.request_json(http_method, path, headers: headers, query: query)
-        ).to eq(json_hash)
-      end
-      it 'does not raise' do
-        expect do
-          subject.request_json(http_method, path, headers: headers, query: query)
-        end.not_to raise_error
-      end
-    end
-    context 'invalid Content-Type response' do
-      let!(:request) do
-        stub_request(http_method, "#{address}#{path}")
-        .with(
-          headers: default_headers
-            .merge(headers)
-            .merge('Accept' => 'application/json'),
-          query: query,
-        )
-        .and_return(
-          headers: {'Content-Type' => 'text/html'},
-          status: expected_status_code,
-          body: json,
-        )
-      end
-      it 'raises UnexpectedContentType' do
-        expect do
-          subject.request_json(http_method, path, headers: headers, query: query)
-        end.to raise_error(described_class.const_get(:UnexpectedContentType))
       end
     end
   end
