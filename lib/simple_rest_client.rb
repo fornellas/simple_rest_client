@@ -168,10 +168,11 @@ class SimpleRESTClient
   # body / body_stream:: For requests tha supporting sending a body, use one of the two to define a payload.
   # expected_status_code:: Status-code validation. See SimpleRESTClient::Response#expected_status_code.
   # \net_http_attrs:: Hash with attributes of #net_http to change only for this request. Useful for setting up Net::HTTP#read_timeout only for slow requests.
+  # receive_format:: Set format of response (eg: <tt>:json</tt>). This will set <tt>Accept</tt> header on the requset, and will set <tt>:receive_format</tt> on SimpleRESTClient::Response, to allow usage of SimpleRESTClient::Response#parsed_body.
   # To use Net::HTTPResponse#read_body, you must pass a block (otherwise, response body will be cached to memory).
   # :call-seq:
-  # request(http_method, path, query: {}, headers: {}, body: nil, body_stream: nil, expected_status_code: default_expected_status_code[http_method]) {|simple_rest_client_response| ... } -> (block return value)
-  # request(http_method, path, query: {}, headers: {}, body: nil, body_stream: nil, expected_status_code: default_expected_status_code[http_method]) -> SimpleRESTClient::Response
+  # request(http_method, path, query: {}, headers: {}, body: nil, body_stream: nil, expected_status_code: default_expected_status_code[http_method], receive_format: nil) {|simple_rest_client_response| ... } -> (block return value)
+  # request(http_method, path, query: {}, headers: {}, body: nil, body_stream: nil, expected_status_code: default_expected_status_code[http_method], receive_format: nil) -> SimpleRESTClient::Response
   def request(
     http_method,
     path,
@@ -180,15 +181,16 @@ class SimpleRESTClient
     body: nil,
     body_stream: nil,
     expected_status_code: default_expected_status_code[http_method],
+    receive_format: nil,
     net_http_attrs: {},
     &block
   )
     uri = build_uri(path, query)
-    request = build_request(http_method, uri, headers, body, body_stream)
+    request = build_request(http_method, uri, headers, body, body_stream, receive_format)
     with_net_http_attrs(net_http_attrs) do
       @around_request_hook.call(
         proc do
-          do_request(request, expected_status_code, &block)
+          do_request(request, expected_status_code, receive_format, &block)
         end,
         request
       )
@@ -308,7 +310,7 @@ class SimpleRESTClient
     ( net_http_attrs[:use_ssl] ? URI::HTTPS : URI::HTTP ).build(build_args)
   end
 
-  def build_request http_method, uri, headers, body, body_stream
+  def build_request http_method, uri, headers, body, body_stream, receive_format
     begin
       request_class = Net::HTTP.const_get(http_method.downcase.capitalize)
     rescue NameError
@@ -322,7 +324,7 @@ class SimpleRESTClient
     end
     request = request_class.new(
       uri,
-      build_headers(headers)
+      build_headers(headers, receive_format)
     )
     request.basic_auth(username, password.to_s) if username
     request.body = body if body
@@ -330,16 +332,31 @@ class SimpleRESTClient
     request
   end
 
-  def build_headers headers
+  def build_headers headers, receive_format
     conflicting_header_keys = base_headers.keys & headers.keys
     unless conflicting_header_keys.empty?
       raise ArgumentError, "Passed headers conflict with base_headers: #{conflicting_header_keys.join(', ')}."
     end
-    base_headers
+    final_headers = base_headers
+      .dup
       .merge(headers)
       .merge('user-agent' => "#{SimpleRESTClient}/#{SimpleRESTClient::VERSION} (#{RUBY_DESCRIPTION}) Ruby")
+    set_accept_header(final_headers, receive_format)
+    final_headers
       .map{|k,v| [k.to_s, v.to_s]}
       .to_h
+  end
+
+  def set_accept_header headers, receive_format
+    return unless receive_format
+    headers['Accept'] = case receive_format
+      when :json
+        'application/json'
+      when :yaml
+        'text/yaml'
+      else
+        raise ArgumentError, "Unknown receive_format: #{receive_format.inspect}"
+      end
   end
 
   # Set given #net_http attributes, execute given block, and restore all attributes.
@@ -364,7 +381,7 @@ class SimpleRESTClient
     end
   end
 
-  def do_request(request, expected_status_code, &block)
+  def do_request(request, expected_status_code, receive_format, &block)
     @pre_request_hooks.each do |pre_request_hook|
       pre_request_hook.call(request)
     end
@@ -374,7 +391,8 @@ class SimpleRESTClient
           process_response(
             request,
             net_httpresponse,
-            expected_status_code
+            expected_status_code,
+            receive_format
           )
         )
       end
@@ -382,16 +400,23 @@ class SimpleRESTClient
       process_response(
         request,
         net_http.request(request),
-        expected_status_code
+        expected_status_code,
+        receive_format
       )
     end
   end
 
-  def process_response request, net_httpresponse, expected_status_code
+  def process_response(
+    request,
+    net_httpresponse,
+    expected_status_code,
+    receive_format
+  )
     fix_response_encoding(net_httpresponse)
     response = Response.new(
       net_httpresponse: net_httpresponse,
       expected_status_code: expected_status_code,
+      receive_format: receive_format
     )
     response.validate_status_code
     @post_request_hooks.each do |post_request_hook|

@@ -162,11 +162,20 @@ RSpec.describe SimpleRESTClient do
     end
   end
   context '#request' do
-    let(:http_method) { :mkcol }
-    it 'can perform generic requests' do
-      request = stub_request(http_method, "#{address}#{path}")
-      subject.request(http_method, path)
-      expect(request).to have_been_requested
+    context 'making requests' do
+      let(:http_method) { :mkcol }
+      it 'can perform generic requests' do
+        request = stub_request(http_method, "#{address}#{path}")
+        subject.request(http_method, path)
+        expect(request).to have_been_requested
+      end
+      it 'passes net_http_attrs to Net::HTTP.start' do
+        stub_request(http_method, "#{address}#{path}")
+        subject.net_http_attrs.each do |key, value|
+          expect(subject.net_http.send(key)).to eq(value)
+        end
+        subject.request(http_method, path)
+      end
     end
     context '#base_path' do
       context 'unset' do
@@ -380,12 +389,92 @@ RSpec.describe SimpleRESTClient do
         end
       end
     end
-    it 'passes net_http_attrs to Net::HTTP.start' do
-      stub_request(http_method, "#{address}#{path}")
-      subject.net_http_attrs.each do |key, value|
-        expect(subject.net_http.send(key)).to eq(value)
+    context 'receive_format' do
+      shared_examples :receive_format do |receive_format:, accept:, response_body:, parsed_body:|
+        context receive_format.inspect do
+          context 'valid Content-Type response' do
+            let(:http_method) { :get }
+            let!(:request) do
+              stub_request(http_method, "#{address}#{path}")
+                .with(
+                  headers: default_headers
+                    .merge('Accept' => accept),
+                )
+                .and_return(
+                  headers: {'Content-Type' => accept},
+                  status: 200,
+                  body: response_body,
+                )
+            end
+            it "sets header \"Accept: #{accept}\"" do
+              subject.send(http_method, path, receive_format: receive_format)
+              expect(request).to have_been_requested
+            end
+            it 'sets SimpleRESTClient::Response#receive_format' do
+              response = subject.send(
+                http_method,
+                path,
+                receive_format: receive_format
+              )
+              expect(response.receive_format).to eq(receive_format)
+            end
+            context 'SimpleRESTClient::Response#parsed_body' do
+              it 'returns parsed body' do
+                response = subject.send(
+                  http_method,
+                  path,
+                  receive_format: receive_format
+                )
+                expect(response.parsed_body).to eq(parsed_body)
+              end
+            end
+          end
+          context 'invalid Content-Type response' do
+            let(:http_method) { :get }
+            let!(:request) do
+              stub_request(http_method, "#{address}#{path}")
+                .with(
+                  headers: default_headers
+                    .merge('Accept' => accept),
+                )
+                .and_return(
+                  headers: {'Content-Type' => 'invalid/type'},
+                  status: 200,
+                  body: response_body,
+                )
+            end
+            it 'raises UnexpectedContentType' do
+              expect do
+                subject.send(http_method, path, receive_format: receive_format)
+                  .parsed_body
+              end.to raise_error(
+                described_class.const_get(:Response)
+                  .const_get(:UnexpectedContentType)
+              )
+            end
+          end
+        end
       end
-      subject.request(http_method, path)
+      response_hash = {'a' => '1', 'b' => '2'}.freeze
+      include_examples(:receive_format,
+        receive_format: :json,
+        accept: 'application/json',
+        response_body: JSON.generate(response_hash),
+        parsed_body: response_hash,
+      )
+      include_examples(:receive_format,
+        receive_format: :yaml,
+        accept: 'text/yaml',
+        response_body: YAML.dump(response_hash),
+        parsed_body: response_hash,
+      )
+      context 'invalid format' do
+        it 'raises ArgumentError' do
+          expect do
+            subject.request(:get, '/', receive_format: :invalid_format)
+          end.to raise_error(ArgumentError)
+        end
+      end
     end
     # Test workarounds for https://bugs.ruby-lang.org/issues/2567
     context 'response body encoding' do

@@ -1,4 +1,6 @@
 require 'delegate'
+require 'json'
+require 'psych'
 
 class SimpleRESTClient
 
@@ -19,13 +21,13 @@ class SimpleRESTClient
 
     # Raised when an unexpected content type was returned.
     class UnexpectedContentType < RuntimeError
-      attr_reader :response, :expected_content_type
-      def initialize expected_content_type, response
+      attr_reader :net_httpresponse, :expected_content_type
+      def initialize net_httpresponse, expected_content_type
         @expected_content_type = expected_content_type
-        @response             = response
+        @net_httpresponse      = net_httpresponse
       end
       def to_s
-        "Expected content type to be #{expected_content_type.inspect}, but got #{response['content-type'].inspect}."
+        "Expected content type to be #{expected_content_type.inspect}, but got #{net_httpresponse['content-type'].inspect}."
       end
     end
 
@@ -97,9 +99,9 @@ class SimpleRESTClient
     def parsed_body
       raise RuntimeError, "\#receive_format unset!" unless receive_format
       parse_metohd = :"parse_#{receive_format}"
-      if self.respond_to?(parse_metohd)
+      begin
         send(parse_metohd)
-      else
+      rescue NoMethodError
         raise ArgumentError, "Don't know how to parse receive_format: #{receive_format.inspect}!"
       end
     end
@@ -107,12 +109,19 @@ class SimpleRESTClient
     private
 
     def parse_json
-      require 'json'
       expected_content_type = 'application/json'
       unless content_type == expected_content_type
         raise UnexpectedContentType.new(net_httpresponse, expected_content_type)
       end
       JSON.parse(body)
+    end
+
+    def parse_yaml
+      expected_content_type = 'text/yaml'
+      unless content_type == expected_content_type
+        raise UnexpectedContentType.new(net_httpresponse, expected_content_type)
+      end
+      Psych.load(body)
     end
 
   end
