@@ -472,7 +472,56 @@ RSpec.describe SimpleRESTClient do
         it 'raises ArgumentError' do
           expect do
             subject.request(:get, '/', receive_format: :invalid_format)
-          end.to raise_error(ArgumentError)
+          end.to raise_error(ArgumentError, /unknown.+receive_format/i)
+        end
+      end
+    end
+    context 'send_format' do
+      shared_examples :send_format do |send_format:, content_type:, body:, serialized_body:|
+        context send_format.inspect do
+          let(:http_method) { :post }
+          let!(:request) do
+            stub_request(http_method, "#{address}#{path}")
+              .with(
+                headers: default_headers
+                  .merge('Content-Type' => content_type),
+                body: serialized_body,
+              )
+              .and_return(
+                headers: {'Content-Type' => content_type},
+                status: 204,
+              )
+          end
+          it "sets header Content-Type: #{content_type} and serializes body" do
+            subject.send(http_method, path,
+              body: body,
+              send_format: send_format,
+              receive_format: nil,
+            )
+          end
+        end
+      end
+      request_hash = {'a' => '1', 'b' => '2'}.freeze
+      include_examples(:send_format,
+        send_format: :json,
+        content_type: 'application/json',
+        body: request_hash,
+        serialized_body: JSON.generate(request_hash),
+      )
+      include_examples(:send_format,
+        send_format: :yaml,
+        content_type: 'text/yaml',
+        body: request_hash,
+        serialized_body: YAML.dump(request_hash),
+      )
+      context 'invalid format' do
+        it 'raises ArgumentError' do
+          expect do
+            subject.request(
+              :post, '/',
+              send_format: :invalid_format, receive_format: nil
+            )
+          end.to raise_error(ArgumentError, /unknown.+send_format/i)
         end
       end
     end

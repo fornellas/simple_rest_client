@@ -2,6 +2,8 @@ require 'erb'
 require 'uri'
 require 'net/http'
 require 'net/https'
+require 'json'
+require 'psych'
 require_relative 'simple_rest_client/response'
 require_relative 'simple_rest_client/version'
 
@@ -168,11 +170,25 @@ class SimpleRESTClient
   # body / body_stream:: For requests tha supporting sending a body, use one of the two to define a payload.
   # expected_status_code:: Status-code validation. See SimpleRESTClient::Response#expected_status_code.
   # \net_http_attrs:: Hash with attributes of #net_http to change only for this request. Useful for setting up Net::HTTP#read_timeout only for slow requests.
+  # send_format:: Set format of body. This will set <tt>Content-Type</tt> header accordingly, and serialize given body. Supported formats: <tt>:json</tt> and <tt>:yaml</tt>. Eg:
   # receive_format:: Set format of response (eg: <tt>:json</tt>). This will set <tt>Accept</tt> header on the requset, and will set <tt>:receive_format</tt> on SimpleRESTClient::Response, to allow usage of SimpleRESTClient::Response#parsed_body.
+  #  simple_rest_client.request(:post, '/', body: {'key' => 'value'}, send_format: :json)
   # To use Net::HTTPResponse#read_body, you must pass a block (otherwise, response body will be cached to memory).
   # :call-seq:
-  # request(http_method, path, query: {}, headers: {}, body: nil, body_stream: nil, expected_status_code: default_expected_status_code[http_method], receive_format: nil) {|simple_rest_client_response| ... } -> (block return value)
-  # request(http_method, path, query: {}, headers: {}, body: nil, body_stream: nil, expected_status_code: default_expected_status_code[http_method], receive_format: nil) -> SimpleRESTClient::Response
+  # request(
+  #   http_method, path,
+  #   query: {}, headers: {},
+  #   body: nil, body_stream: nil,
+  #   expected_status_code: default_expected_status_code[http_method],
+  #   send_format: nil, receive_format: send_format,
+  # ) {|simple_rest_client_response| ... } -> (block return value)
+  # request(
+  #   http_method, path,
+  #   query: {}, headers: {},
+  #   body: nil, body_stream: nil,
+  #   expected_status_code: default_expected_status_code[http_method],
+  #   send_format: nil, receive_format: send_format,
+  # ) -> SimpleRESTClient::Response
   def request(
     http_method,
     path,
@@ -181,12 +197,17 @@ class SimpleRESTClient
     body: nil,
     body_stream: nil,
     expected_status_code: default_expected_status_code[http_method],
-    receive_format: nil,
+    send_format: nil,
+    receive_format: send_format,
     net_http_attrs: {},
     &block
   )
     uri = build_uri(path, query)
-    request = build_request(http_method, uri, headers, body, body_stream, receive_format)
+    request = build_request(
+      http_method, uri, headers,
+      body, body_stream,
+      receive_format, send_format
+    )
     with_net_http_attrs(net_http_attrs) do
       @around_request_hook.call(
         proc do
@@ -310,7 +331,11 @@ class SimpleRESTClient
     ( net_http_attrs[:use_ssl] ? URI::HTTPS : URI::HTTP ).build(build_args)
   end
 
-  def build_request http_method, uri, headers, body, body_stream, receive_format
+  def build_request(
+    http_method, uri, headers,
+    body, body_stream,
+    receive_format, send_format
+  )
     begin
       request_class = Net::HTTP.const_get(http_method.downcase.capitalize)
     rescue NameError
@@ -324,15 +349,14 @@ class SimpleRESTClient
     end
     request = request_class.new(
       uri,
-      build_headers(headers, receive_format)
+      build_headers(headers, receive_format, send_format)
     )
     request.basic_auth(username, password.to_s) if username
-    request.body = body if body
-    request.body_stream = body_stream if body_stream
+    set_body(request, body, body_stream, send_format)
     request
   end
 
-  def build_headers headers, receive_format
+  def build_headers headers, receive_format,  send_format
     conflicting_header_keys = base_headers.keys & headers.keys
     unless conflicting_header_keys.empty?
       raise ArgumentError, "Passed headers conflict with base_headers: #{conflicting_header_keys.join(', ')}."
@@ -342,6 +366,7 @@ class SimpleRESTClient
       .merge(headers)
       .merge('user-agent' => "#{SimpleRESTClient}/#{SimpleRESTClient::VERSION} (#{RUBY_DESCRIPTION}) Ruby")
     set_accept_header(final_headers, receive_format)
+    set_content_type(final_headers, send_format)
     final_headers
       .map{|k,v| [k.to_s, v.to_s]}
       .to_h
@@ -357,6 +382,35 @@ class SimpleRESTClient
       else
         raise ArgumentError, "Unknown receive_format: #{receive_format.inspect}"
       end
+  end
+
+  def set_content_type headers, send_format
+    return unless send_format
+    headers['Content-Type'] = case send_format
+      when :json
+        'application/json'
+      when :yaml
+        'text/yaml'
+      else
+        raise ArgumentError, "Unknown send_format: #{send_format.inspect}"
+      end
+  end
+
+  def set_body(request, body, body_stream, send_format)
+    if send_format && body_stream
+      raise ArgumentError, "send_format can not be used with body_stream!" if body_stream
+    end
+    case send_format
+    when :json
+      request.body = JSON.generate(body)
+    when :yaml
+      request.body = Psych.dump(body)
+    when nil
+      request.body = body if body
+      request.body_stream = body_stream if body_stream
+    else
+      raise ArgumentError, "Unknown send_format: #{send_format.inspect}!"
+    end
   end
 
   # Set given #net_http attributes, execute given block, and restore all attributes.
@@ -389,28 +443,22 @@ class SimpleRESTClient
       net_http.request(request) do |net_httpresponse|
         return block.call(
           process_response(
-            request,
-            net_httpresponse,
-            expected_status_code,
-            receive_format
+            request, net_httpresponse,
+            expected_status_code, receive_format
           )
         )
       end
     else
       process_response(
-        request,
-        net_http.request(request),
-        expected_status_code,
-        receive_format
+        request, net_http.request(request),
+        expected_status_code, receive_format
       )
     end
   end
 
   def process_response(
-    request,
-    net_httpresponse,
-    expected_status_code,
-    receive_format
+    request, net_httpresponse,
+    expected_status_code, receive_format
   )
     fix_response_encoding(net_httpresponse)
     response = Response.new(
