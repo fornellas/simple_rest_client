@@ -46,7 +46,13 @@ class SimpleRESTClient
     # Instance of Net::HTTPResponse
     attr_reader :net_httpresponse
 
-    # Validation rule for #net_httpresponse status-code. Can be given as a code number (<tt>200</tt>), Array of codes (<tt>[200, 201]</tt>), Range (<tt>(200..202)</tt>), one of <tt>:informational</tt>, <tt>:successful</tt>, <tt>:redirection</tt>, <tt>:client_error</tt>, <tt>:server_error</tt> or response class (Net::HTTPSuccess). To disable status code validation, set to <tt>nil</tt>. Set to nil to disale validation.
+    # Validation rule for #net_httpresponse status-code. Can be given as:
+    # * A code number (<tt>200</tt>).
+    # * Array of codes (<tt>[200, 201]</tt>).
+    # * Range (<tt>(200..202)</tt>).
+    # * One of <tt>:informational</tt>, <tt>:successful</tt>, <tt>:redirection</tt>, <tt>:client_error</tt>, <tt>:server_error</tt>.
+    # * \Response class (Eg: Net::HTTPSuccess).
+    # To disable status code validation, set to <tt>nil</tt>. Set to nil to disale validation.
     attr_reader :expected_status_code
 
     # Format of response, used by #parsed_body. Supported formats: <tt>:json</tt>.
