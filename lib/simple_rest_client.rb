@@ -199,9 +199,9 @@ class SimpleRESTClient
   # headers:: Request headers in form of a Hash. Must not conflict with #base_headers.
   # body / body_stream:: For requests tha supporting sending a body, use one of the two to define a payload.
   # expected_status_code:: Status-code validation. See SimpleRESTClient::Response#expected_status_code.
-  # \net_http_attrs:: Hash with attributes of #net_http to change only for this request. Useful for setting up Net::HTTP#read_timeout only for slow requests.
   # send_format:: Set format of body. This will set <tt>Content-Type</tt> header accordingly, and serialize given body. Supported formats: <tt>:json</tt> and <tt>:yaml</tt>. Eg:
   # receive_format:: Set format of response (eg: <tt>:json</tt>). This will set <tt>Accept</tt> header on the requset, and will set <tt>:receive_format</tt> on SimpleRESTClient::Response, to allow usage of SimpleRESTClient::Response#parsed_body.
+  # \net_http_attrs:: Hash with attributes of #net_http to change only for this request. Useful for setting up Net::HTTP#read_timeout only for slow requests.
   # Tip: to use Net::HTTPResponse#read_body, you must pass a block (otherwise, response body will be cached to memory).
   # :call-seq:
   # request(
@@ -211,6 +211,7 @@ class SimpleRESTClient
   #   expected_status_code: default_expected_status_code[http_method],
   #   send_format: default_send_format[http_method],
   #   receive_format: default_receive_format[http_method],
+  #   net_http_attrs: {},
   # ) {|simple_rest_client_response| ... } -> (block return value)
   # request(
   #   http_method, path,
@@ -219,6 +220,7 @@ class SimpleRESTClient
   #   expected_status_code: default_expected_status_code[http_method],
   #   send_format: default_send_format[http_method],
   #   receive_format: default_receive_format[http_method],
+  #   net_http_attrs: {},
   # ) -> SimpleRESTClient::Response
   def request(
     http_method,
