@@ -1,8 +1,257 @@
 # Simple REST Client
 
-WARNING: Currently in prototype stage!
+Gem to aid construction of [REST](https://en.wikipedia.org/wiki/Representational_state_transfer) API gateway classes.
 
-Gem to aid construction of [REST](https://en.wikipedia.org/wiki/Representational_state_transfer) API clients, focused on the following principles:
+## Usage
+
+It can be used as a stand alone object:
+
+```ruby
+require 'simple_rest_client'
+json_placeholder = SimpleRESTClient.new(
+  address: 'jsonplaceholder.typicode.com',
+  default_send_format: Hash.new(:json),
+  default_receive_format: Hash.new(:json),
+)
+json_placeholder.get('/users/1').parsed_body # => Hash
+```
+
+Or as a base class:
+
+```ruby
+require 'simple_rest_client'
+class JSONPlaceholder < SimpleRESTClient
+  def initialize
+    super(
+      address: 'jsonplaceholder.typicode.com',
+      default_send_format: Hash.new(:json),
+      default_receive_format: Hash.new(:json),
+    )
+  end
+  def posts
+    get('/users').parsed_body
+  end
+end
+json_placeholder = JSONPlaceholder.new
+json_placeholder.posts # => Hash
+```
+
+Note that you can alternatively use the builder pattern with the constructor (useful for complex scenarios):
+
+```ruby
+SimpleRESTClient.new(address: 'jsonplaceholder.typicode.com') do |c|
+  c.default_send_format    = Hash.new(:json)
+  c.default_receive_format = Hash.new(:json)
+)
+```
+
+#### Base request parameters
+
+Many APIs have common attributes to all URIs / requests. You can set up those with:
+
+```ruby
+SimpleRESTClient.new(
+  address: 'example.com',
+  base_path: '/api/v1', # Prefix URLs
+  base_query: {token: 'PHEEPHEEVI2IOTOHTHEI'}, # Useful for authorization
+  base_headers: {authorization: 'PHEEPHEEVI2IOTOHTHEI'}, # Also useful for authorization
+)
+```
+
+#### Net::HTTP attributes
+
+You can costumize any Net::HTTP attributes:
+
+```ruby
+SimpleRESTClient.new(
+  address: 'example.com',
+  net_http_attrs: {
+    open_timeout: 1,
+    read_timeout: 5,
+    ssl_timeout:  5,
+  }
+)
+```
+
+#### Authentication
+
+Basic Auth can be set up with:
+
+```ruby
+SimpleRESTClient.new(
+  address:  'example.com',
+  username: 'john',
+  password: 'secret',
+)
+```
+
+Many APIs do authentication via a token, passed either via a query string, or a header. You can use <tt>:base_path</tt> and <tt>:base_headers</tt> for that cases.
+
+#### Default Status Code validation
+
+SimpleRESTClient does its best to deliver sensible defaults regarding status code validation. However, **each API is unique**, and you should set thing up according to your own API.
+
+Example:
+
+```ruby
+SimpleRESTClient.new(
+  address:  'example.com',
+  default_expected_status_code: Hash.new(:successful).merge(delete: 204),
+)
+```
+
+This will accept any 2XX codes for all requests, but only 204 for DELETE. In all other cases, an exception is raised.
+
+See SimpleRESTClient::Response::DEFAULT_EXPECTED_STATUS_CODE to check the default values.
+
+#### Default Media Type format
+
+Most APIs have a common media format (such as JSON). SimpleRESTClient can do some work for you (set Accept / Content-Type headers and deserialize the body):
+
+```ruby
+SimpleRESTClient.new(
+  address:  'example.com',
+  default_send_format: Hash.new(:json),
+  default_receive_format: Hash.new(:json),
+)
+```
+
+With this set up you can easily fetch JSON:
+
+```ruby
+# Set Accept header, and return parsed JSON
+simple_rest_client.get('/posts/1').parsed_body # => Hash, parsed JSON
+```
+
+and send JSON:
+
+```ruby
+# Set Content-Type header, and use JSON#generate on body attribute
+simple_rest_client.put('/posts/1', body: {user: 'John'})
+```
+
+#### Logging
+
+Minimum logging support is also implemented:
+
+```ruby
+require 'logger'
+simple_rest_client = SimpleRESTClient.new(
+  address:  'jsonplaceholder.typicode.com',
+  logger: Logger.new(STDERR)
+)
+simple_rest_client.get('/posts/1')
+# !> I, [2016-05-02T22:42:01.486768 #28083]  INFO -- : GET http://jsonplaceholder.typicode.com/posts/1
+```
+
+#### Hooks
+
+You can implement the [observer pattern](https://en.wikipedia.org/wiki/Observer_pattern) with hooks:
+
+```ruby
+SimpleRESTClient.new(address: 'example.com') do |c|
+  # Before
+  c.add_pre_request_hook do |request|
+    puts "Performing request #{request}..."
+  end
+  # After
+  c.add_post_request_hook do |response, request|
+    puts "Finished request #{request}, got response #{response}!"
+  end
+  # Around
+  c.add_around_request_hook do |block, request|
+    puts "Performing request #{request}..."
+    response = block.call
+    puts "Finished request #{request}, got response #{response}!"
+  end
+end
+```
+
+### Performing Requests
+
+You can perform a request by invoking a method with the same name of the HTTP method. Examples:
+
+```ruby
+simple_rest_client.get('/posts/1', receive_format: :json) # => SimpleRESTClient::Response
+simple_rest_client.put('/posts/1', body: {user: 'John'}, send_format: :json) # => SimpleRESTClient::Response
+```
+
+Without a block, requests will always return a SimpleRESTClient::Response object. This object uses SimpleDelegator to send all messages to the original Net::HTTPResponse object, but decorates it with some extra features:
+
+```ruby
+response = simple_rest_client.get('/posts/1', receive_format: :json)
+response.body # String, from Net::HTTPResponse#body
+response.parsed_body # Hash, parsed JSON body (SimpleRESTClient::Response#parsed_body)
+```
+
+If you do requests with a block, the response will be yielded to it:
+
+```ruby
+simple_rest_client.get('/posts') do |response|
+  # Process response here (eg: stream response body)
+end
+```
+
+#### Sending streamed body
+
+You can stream bodies just as you'd do with Net::HTTP:
+
+```ruby
+File.open('big_file', 'r') do |io|
+  simple_rest_client.post(
+    '/upload',
+    body_stream: io
+  )
+end
+```
+
+#### Status Code validation
+
+Status code validation always follows the default set at SimpleRESTClient#initialize with <tt>:default_expected_status_code</tt>, but can be overwritten by request:
+
+```ruby
+simple_rest_client.delete('/posts/1', expected_status_code: 204)
+simple_rest_client.delete('/posts/1', expected_status_code: [200, 204])
+simple_rest_client.delete('/posts/1', expected_status_code: (200...300))
+simple_rest_client.delete('/posts/1', expected_status_code: Net::HTTPOK)
+simple_rest_client.delete('/posts/1', expected_status_code: :successful)
+```
+
+It can also be disabled:
+
+```ruby
+simple_rest_client.delete('/posts/1', expected_status_code: nil) do |response|
+  # do your own status code validation
+end
+```
+
+#### Setting per request Net::HTTP attributes
+
+Sometimes it is useful to set up Net::HTTP attributes per request (eg: increased timeout only for a particular request):
+
+```ruby
+simple_rest_client.get(
+  '/posts',
+  net_http_attrs: {
+    read_timeout: 300,
+  }
+)
+```
+
+#### Per Request Media Format
+
+Generally media formats are set up at the constructor with <tt>:default_send_format</tt> and <tt>:default_receive_format</tt>, but can be overwritten:
+
+```ruby
+# Disable
+simple_rest_client.get('/posts/1/attachment/1', receive_format: nil)
+# Force JSON
+simple_rest_client.get('/posts/1', receive_format: :json)
+```
+
+## Design Principles
+
+There are plenty of alternatives to help interfacing with a REST API in Ruby, and many work just fine. This Gem is an attempt distinguish itself, by uniting some known patterns, do the best to not get in your way, have sensible defaults and useful common functionality.
 
 * Use Ruby's [idioms](https://en.wikipedia.org/wiki/Programming_idiom) whenever possible.
 * Use known [design patterns](https://en.wikipedia.org/wiki/Software_design_pattern).
