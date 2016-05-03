@@ -7,29 +7,7 @@ require 'psych'
 require_relative 'simple_rest_client/response'
 require_relative 'simple_rest_client/version'
 
-# Base class to help easily create REST HTTP clients.
-#
-# Example client:
-#   class ExampleAPI < SimpleRESTClient
-#     def initialize
-#       super(address: 'api.example.com')
-#     end
-#     def resource_list filter
-#       get('/resource_list', query: {filter: filter}).body
-#     end
-#   end
-# Alternatively, you can do it without making a child class:
-#   require 'simple_rest_client'
-#
-#   class ExampleAPI
-#     def initialize
-#       @simple_rest_client = SimpleRESTClient.new(address: 'api.example.com')
-#     end
-#     def resource_list filter
-#       @simple_rest_client.get('/resource_list', query: {filter: filter}).body
-#     end
-#   end
-# You can define your own methods, regarding your own problem domain, to ease access to any resource in your API. Make use of any of the HTTP verb methods provided to easily interface with your API.
+# REST API gateway helper class.
 class SimpleRESTClient
 
   # Default value for #net_http_attrs.
@@ -39,6 +17,11 @@ class SimpleRESTClient
     ssl_timeout:  10,
   }.freeze
 
+  # Default value for #default_send_format
+  DEFAULT_SEND_FORMAT    = {}.freeze
+  # Default value for #default_receive_format
+  DEFAULT_RECEIVE_FORMAT = {}.freeze
+
   # Hostname or IP address of the server.
   attr_reader :address
 
@@ -46,26 +29,32 @@ class SimpleRESTClient
   attr_reader :port
 
   # Base path to prefix all requests with. Must be URL encoded when needed.
-  attr_reader :base_path
+  attr_accessor :base_path
 
   # Base query string to use in all requests. Must be provided as a Hash.
-  attr_reader :base_query
+  attr_accessor :base_query
 
   # Base headers to be used in all requests. Must be provided as a Hash.
-  attr_reader :base_headers
+  attr_accessor :base_headers
 
   # Hash with default attributes for Net::HTTP. Defaults to DEFAULT_NET_HTTP_ATTRS. If #port is 443 and :use_ssl is not specified, it will be set to true.
   attr_reader :net_http_attrs
 
   # Username for basic auth.
-  attr_reader :username
+  attr_accessor :username
 
   # Password for basic auth.
-  attr_reader :password
+  attr_accessor :password
 
-  # Hash with default values for #request. Keys are Symbols to HTTP methods (eg: <tt>:get</tt>), values are anything accepted by #request's expected_status_code parameter.
-  # General purpose defaults are defined at DEFAULT_EXPECTED_STATUS_CODE.
-  attr_reader :default_expected_status_code
+  # Hash with default values for #request. Keys are Symbol to HTTP methods (eg: <tt>:get</tt>), values are anything accepted by #request's expected_status_code parameter.
+  # General purpose defaults are defined at SimpleRESTClient::Response::DEFAULT_EXPECTED_STATUS_CODE.
+  attr_accessor :default_expected_status_code
+
+  # Hash with default values for #request. Keys are Symbol ot HTTP methods (eg: <tt>:get</tt>), values are the default format for this method.
+  attr_accessor :default_send_format
+
+  # Hash with default values for #request. Keys are Symbol ot HTTP methods (eg: <tt>:get</tt>), values are the default format for this method.
+  attr_accessor :default_receive_format
 
   # List of hooks that are called before each request
   attr_reader :pre_request_hooks
@@ -77,11 +66,39 @@ class SimpleRESTClient
   attr_reader :around_request_hook
 
   # Logger instance where to log to.
-  attr_reader :logger
+  attr_accessor :logger
 
   # :section:
 
-  # Creates a new HTTP client. Please refer to each attribute's documentation for details and default values.
+  # Creates a new HTTP client.
+  # Can receive all attributes as parameters:
+  #  SimpleRESTClient.new(
+  #    address:   'example.com',
+  #    base_path: '/api',
+  #    logger:    Logger.new(STDERR),
+  #  )
+  # Or using the {builder pattern}[https://en.wikipedia.org/wiki/Builder_pattern]:
+  #  SimpleRESTClient.new(address: 'example.com') do |c|
+  #    c.base_path = '/api'
+  #    c.logger    = Logger.new(STDERR)
+  #  end
+  # Please refer to each attribute's documentation for details and default values.
+  # :call-seq:
+  # new(
+  #   address:                      ,
+  #   port:                         nil,
+  #   base_path:                    nil,
+  #   base_query:                   {},
+  #   base_headers:                 {},
+  #   net_http_attrs:               DEFAULT_NET_HTTP_ATTRS.dup,
+  #   username:                     nil,
+  #   password:                     nil,
+  #   default_expected_status_code: SimpleRESTClient::Response::DEFAULT_EXPECTED_STATUS_CODE.dup,
+  #   default_send_format:          DEFAULT_SEND_FORMAT.dup,
+  #   default_receive_format:       DEFAULT_RECEIVE_FORMAT.dup,
+  #   logger:                       nil
+  # )
+  # new(address) {|simple_rest_client| ... }
   def initialize(
     address:                      ,
     port:                         nil,
@@ -92,6 +109,8 @@ class SimpleRESTClient
     username:                     nil,
     password:                     nil,
     default_expected_status_code: SimpleRESTClient::Response::DEFAULT_EXPECTED_STATUS_CODE.dup,
+    default_send_format:          DEFAULT_SEND_FORMAT.dup,
+    default_receive_format:       DEFAULT_RECEIVE_FORMAT.dup,
     logger:                       nil
   )
     @address                        = address
@@ -110,6 +129,8 @@ class SimpleRESTClient
     @username                       = username
     @password                       = password
     @default_expected_status_code   = default_expected_status_code
+    @default_send_format            = default_send_format
+    @default_receive_format         = default_receive_format
     @logger                         = logger
     @net_http                       = nil
     @pre_request_hooks              = []
@@ -162,7 +183,16 @@ class SimpleRESTClient
 
   # :section: Generic requests
 
-  # Performs a generic HTTP method request.
+  # Performs a generic HTTP method request. Examples:
+  #  # Fetch a resource
+  #  simple_rest_client.request(:get, '/posts/3', receive_format: :json) # => Parsed JSON
+  #  # Search for resources
+  #  simple_rest_client.request(:post, '/posts', query: {user: 'John'}, receive_format: :json)  # => Parsed JSON
+  #  # Update a resource
+  #  simple_rest_client.request(:put, '/posts/3', body: {user: 'David'}, send_format: :json)  # => Parsed JSON
+  # It is highly recommended to set <tt>:default_expected_status_code</tt>, <tt>:default_send_format</tt> and <tt>:default_receive_format</tt> at \#initialize according to your particular API to avoid repetition.
+  #
+  # Arguments description:
   # http_method:: HTTP method to invoke.
   # path:: URI path.
   # query:: URI query, in form of a Hash.
@@ -172,34 +202,35 @@ class SimpleRESTClient
   # \net_http_attrs:: Hash with attributes of #net_http to change only for this request. Useful for setting up Net::HTTP#read_timeout only for slow requests.
   # send_format:: Set format of body. This will set <tt>Content-Type</tt> header accordingly, and serialize given body. Supported formats: <tt>:json</tt> and <tt>:yaml</tt>. Eg:
   # receive_format:: Set format of response (eg: <tt>:json</tt>). This will set <tt>Accept</tt> header on the requset, and will set <tt>:receive_format</tt> on SimpleRESTClient::Response, to allow usage of SimpleRESTClient::Response#parsed_body.
-  #  simple_rest_client.request(:post, '/', body: {'key' => 'value'}, send_format: :json)
-  # To use Net::HTTPResponse#read_body, you must pass a block (otherwise, response body will be cached to memory).
+  # Tip: to use Net::HTTPResponse#read_body, you must pass a block (otherwise, response body will be cached to memory).
   # :call-seq:
   # request(
   #   http_method, path,
   #   query: {}, headers: {},
   #   body: nil, body_stream: nil,
   #   expected_status_code: default_expected_status_code[http_method],
-  #   send_format: nil, receive_format: send_format,
+  #   send_format: default_send_format[http_method],
+  #   receive_format: default_receive_format[http_method],
   # ) {|simple_rest_client_response| ... } -> (block return value)
   # request(
   #   http_method, path,
   #   query: {}, headers: {},
   #   body: nil, body_stream: nil,
   #   expected_status_code: default_expected_status_code[http_method],
-  #   send_format: nil, receive_format: send_format,
+  #   send_format: default_send_format[http_method],
+  #   receive_format: default_receive_format[http_method],
   # ) -> SimpleRESTClient::Response
   def request(
     http_method,
     path,
-    query: {},
-    headers: {},
-    body: nil,
-    body_stream: nil,
+    query:                {},
+    headers:              {},
+    body:                 nil,
+    body_stream:          nil,
     expected_status_code: default_expected_status_code[http_method],
-    send_format: nil,
-    receive_format: send_format,
-    net_http_attrs: {},
+    send_format:          default_send_format[http_method],
+    receive_format:       default_receive_format[http_method],
+    net_http_attrs:       {},
     &block
   )
     uri = build_uri(path, query)
