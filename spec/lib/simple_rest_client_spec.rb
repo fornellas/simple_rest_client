@@ -1,3 +1,4 @@
+# frozen_string_literal: true
 require 'simple_rest_client'
 require 'stringio'
 require 'logger'
@@ -6,14 +7,14 @@ RSpec.describe SimpleRESTClient do
   let(:address) { 'example.com' }
   let(:path) { '/test_path' }
   let(:base_path) { '/base_path' }
-  let(:query) { {query_parameter: 'query_value'} }
-  let(:base_query) { {base_query_parameter: 'base_query_value'} }
-  let(:headers) { {header_name: 'header_value'} }
-  let(:base_headers) { {base_header_name: 'base_header_value'} }
-  let(:body) { 'request_body' }
+  let(:query) { { query_parameter: 'query_value' } }
+  let(:base_query) { { base_query_parameter: 'base_query_value' } }
+  let(:headers) { { header_name: 'header_value' } }
+  let(:base_headers) { { base_header_name: 'base_header_value' } }
+  let(:body) { String.new('request_body') }
   let(:body_stream_text) { "body\n" * 10 }
 
-  def body_stream text
+  def body_stream(text)
     StringIO.new(text, 'r')
   end
 
@@ -41,7 +42,7 @@ RSpec.describe SimpleRESTClient do
             described_class.new(
               address: address,
               net_http_attrs: {
-                use_ssl: true,
+                use_ssl: true
               }
             )
           end
@@ -96,7 +97,7 @@ RSpec.describe SimpleRESTClient do
   end
 
   context 'HTTP Methods' do
-    let(:request_parameters) { {query: query, headers: headers} }
+    let(:request_parameters) { { query: query, headers: headers } }
     [
       :get,
       :head,
@@ -108,7 +109,7 @@ RSpec.describe SimpleRESTClient do
       :patch
     ].each do |http_method|
       request_has_body = Net::HTTP.const_get(http_method.downcase.capitalize)
-        .const_get(:REQUEST_HAS_BODY)
+                                  .const_get(:REQUEST_HAS_BODY)
 
       context "\##{http_method}" do
         it 'calls #request' do
@@ -122,9 +123,9 @@ RSpec.describe SimpleRESTClient do
 
         if request_has_body
           it "works with static body" do
-            request_parameters.merge!(body: body)
+            request_parameters[:body] = body
             request = stub_request(http_method, "#{address}#{path}")
-              .with(request_parameters)
+                      .with(request_parameters)
             expect(subject)
               .to receive(:request)
               .with(http_method, path, request_parameters)
@@ -135,14 +136,14 @@ RSpec.describe SimpleRESTClient do
 
           it "works with streaming body" do
             request = stub_request(http_method, "#{address}#{path}")
-              .with(request_parameters.merge(body: body_stream_text))
+                      .with(request_parameters.merge(body: body_stream_text))
             body_stream_arg = body_stream(body_stream_text)
             expect(subject)
               .to receive(:request)
               .with(
                 http_method,
-                  path,
-                  request_parameters.merge(body_stream: body_stream_arg)
+                path,
+                request_parameters.merge(body_stream: body_stream_arg)
               )
               .and_call_original
             subject.send(
@@ -155,18 +156,18 @@ RSpec.describe SimpleRESTClient do
 
           it "works with no body" do
             request = stub_request(http_method, "#{address}#{path}")
-            .with(request_parameters)
+                      .with(request_parameters)
             expect(subject)
-            .to receive(:request)
-            .with(http_method, path, request_parameters)
-            .and_call_original
+              .to receive(:request)
+              .with(http_method, path, request_parameters)
+              .and_call_original
             subject.send(http_method, path, request_parameters)
             expect(request).to have_been_requested
           end
         else
           it "performs request" do
             request = stub_request(http_method, "#{address}#{path}")
-              .with(request_parameters)
+                      .with(request_parameters)
             expect(subject)
               .to receive(:request)
               .with(http_method, path, request_parameters)
@@ -224,7 +225,7 @@ RSpec.describe SimpleRESTClient do
       context 'unset' do
         it 'does not change query' do
           request = stub_request(:get, "#{address}#{path}")
-          .with(query: {})
+                    .with(query: {})
           subject.send(:get, path)
           expect(request).to have_been_requested
         end
@@ -240,15 +241,15 @@ RSpec.describe SimpleRESTClient do
             expect do
               subject.send(:get, path, query: base_query)
             end.to raise_error(
-            ArgumentError,
-            /passed query parameters conflict with base_query parameters/i
+              ArgumentError,
+              /passed query parameters conflict with base_query parameters/i
             )
           end
         end
 
         it 'sets base_query parameters' do
           request = stub_request(:get, "#{address}#{path}")
-            .with(query: base_query)
+                    .with(query: base_query)
           subject.send(:get, path)
           expect(request).to have_been_requested
         end
@@ -259,7 +260,7 @@ RSpec.describe SimpleRESTClient do
       context 'unset' do
         it 'does not send extra headers' do
           request = stub_request(:get, "#{address}#{path}")
-            .with(headers: default_headers)
+                    .with(headers: default_headers)
           subject.send(:get, path)
           expect(request).to have_been_requested
         end
@@ -275,15 +276,15 @@ RSpec.describe SimpleRESTClient do
             expect do
               subject.send(:get, path, headers: base_headers)
             end.to raise_error(
-            ArgumentError,
-            /passed headers conflict with base_headers/i
+              ArgumentError,
+              /passed headers conflict with base_headers/i
             )
           end
         end
 
         it 'sets base_headers' do
           request = stub_request(:get, "#{address}#{path}")
-          .with(headers: default_headers.merge(headers))
+                    .with(headers: default_headers.merge(headers))
           subject.send(:get, path, headers: headers)
           expect(request).to have_been_requested
         end
@@ -302,9 +303,9 @@ RSpec.describe SimpleRESTClient do
       context 'set' do
         subject do
           described_class.new(
-          address: address,
-          username: username,
-          password: password
+            address: address,
+            username: username,
+            password: password
           )
         end
 
@@ -327,12 +328,12 @@ RSpec.describe SimpleRESTClient do
       context 'charset at headers' do
         before(:example) do
           @request = stub_request(:get, "#{address}:#{path}")
-            .to_return(
-              body: raw_body,
-              headers: default_headers.merge(
-                "Content-Type" => "text/html; charset=#{body_encoding}"
-              )
-            )
+                     .to_return(
+                       body: raw_body,
+                       headers: default_headers.merge(
+                         "Content-Type" => "text/html; charset=#{body_encoding}"
+                       )
+                     )
         end
 
         after(:example) do
@@ -365,12 +366,12 @@ RSpec.describe SimpleRESTClient do
       context 'no charset at headers defaults to ASCII-8BIT' do
         before(:example) do
           @request = stub_request(:get, "#{address}:#{path}")
-            .to_return(
-              body: raw_body,
-              headers: default_headers.merge(
-                "Content-Type" => "text/html"
-              )
-            )
+                     .to_return(
+                       body: raw_body,
+                       headers: default_headers.merge(
+                         "Content-Type" => "text/html"
+                       )
+                     )
         end
 
         after(:example) do
@@ -404,14 +405,14 @@ RSpec.describe SimpleRESTClient do
     context 'hooks' do
       before(:example) do
         @request = stub_request(:get, "#{address}:#{path}")
-          .to_return(body: body)
+                   .to_return(body: body)
         @hook_calls = 0
       end
 
       after(:example) do
         expect do
           subject.get(path)
-        end.to change{@hook_calls}.from(0).to(1)
+        end.to change { @hook_calls }.from(0).to(1)
         expect(@request).to have_been_requested
       end
 
@@ -502,19 +503,17 @@ RSpec.describe SimpleRESTClient do
           it 'logs the request' do
             expect(logger).to receive(:info)
               .with("GET http://#{address}#{path}")
-            begin
+            expect do
               subject.get(path)
-            rescue Timeout::Error
-            end
+            end.to raise_error(Timeout::Error)
           end
 
           it 'logs the error' do
             expect(logger).to receive(:error)
               .with("Failed to GET http://#{address}#{path}: execution expired (#{Timeout::Error})")
-            begin
+            expect do
               subject.get(path)
-            rescue Timeout::Error
-            end
+            end.to raise_error(Timeout::Error)
           end
 
           it 'raises Timeout::Error' do
@@ -529,8 +528,8 @@ RSpec.describe SimpleRESTClient do
     context 'net_http' do
       let!(:original_open_timeout) { subject.net_http.open_timeout }
       let!(:original_read_timeout) { subject.net_http.read_timeout }
-      let(:override_open_timeout) { 23412 }
-      let(:override_read_timeout) { 23412 }
+      let(:override_open_timeout) { 23_412 }
+      let(:override_read_timeout) { 23_412 }
 
       before(:example) do
         stub_request(:get, "#{address}:#{path}")
@@ -560,7 +559,7 @@ RSpec.describe SimpleRESTClient do
           path,
           net_http_attrs: {
             open_timeout: override_open_timeout,
-            read_timeout: override_read_timeout,
+            read_timeout: override_read_timeout
           }
         )
       end
