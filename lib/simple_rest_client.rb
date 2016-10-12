@@ -1,17 +1,18 @@
+# frozen_string_literal: true
 require 'erb'
 require 'uri'
 require 'net/http'
 require 'net/https'
+require 'English'
 require_relative 'simple_rest_client/version'
 
 # REST API gateway helper class.
 class SimpleRESTClient
-
   # Default value for #net_http_attrs.
   DEFAULT_NET_HTTP_ATTRS = {
     open_timeout: 5,
     read_timeout: 30,
-    ssl_timeout:  10,
+    ssl_timeout:  10
   }.freeze
 
   # Hostname or IP address of the server.
@@ -79,7 +80,7 @@ class SimpleRESTClient
   # )
   # new(address) {|simple_rest_client| ... }
   def initialize(
-    address:                      ,
+    address:,
     port:                         nil,
     base_path:                    nil,
     base_query:                   {},
@@ -99,7 +100,7 @@ class SimpleRESTClient
     @base_query                     = base_query
     @base_headers                   = base_headers
     @net_http_attrs                 = net_http_attrs
-    unless @net_http_attrs.has_key?(:use_ssl)
+    unless @net_http_attrs.key?(:use_ssl)
       @net_http_attrs[:use_ssl] = true if port == 443
     end
     @username                       = username
@@ -108,31 +109,30 @@ class SimpleRESTClient
     @net_http                       = nil
     @pre_request_hooks              = []
     @post_request_hooks             = []
-    @around_request_hook            = proc { |block, request| block.call }
+    @around_request_hook            = proc { |block, _request| block.call }
     setup_logging
     yield self if block_given?
   end
-
 
   # Instance of Net::HTTP.
   def net_http
     return @net_http if @net_http
     @net_http = Net::HTTP.new(address, port)
     @net_http_attrs.each { |key, value| @net_http.send(:"#{key}=", value) }
-    ObjectSpace.define_finalizer( self, proc { @net_http.finish } )
+    ObjectSpace.define_finalizer(self, proc { @net_http.finish })
     @net_http
   end
 
   # :section: Hooks
 
   # Register given block at #pre_request_hooks.
-  def add_pre_request_hook &block # :yields: request
+  def add_pre_request_hook(&block) # :yields: request
     raise ArgumentError, "A block must be provided!" unless block
     @pre_request_hooks << block
   end
 
   # Register given block at #post_request_hooks.
-  def add_post_request_hook &block # :yields: response, request
+  def add_post_request_hook(&block) # :yields: response, request
     raise ArgumentError, "A block must be provided!" unless block
     @post_request_hooks << block
   end
@@ -143,12 +143,12 @@ class SimpleRESTClient
   #    response = block.call
   #    # do something after the request was made
   #  end
-  def add_around_request_hook &new_block # :yields: block, request
+  def add_around_request_hook(&new_block) # :yields: block, request
     raise ArgumentError, "A block must be provided!" unless new_block
     old_around_block = @around_request_hook
     @around_request_hook = proc do |block, request|
       old_around_block.call(
-        proc{new_block.call(block, request)},
+        proc { yield(block, request) },
         request
       )
     end
@@ -213,8 +213,8 @@ class SimpleRESTClient
   # :section: HTTP Methods
 
   # Define a instance method for given HTTP request method.
-  def self.http_method http_method # :nodoc:
-    self.class_eval do
+  def self.http_method(http_method) # :nodoc:
+    class_eval do
       define_method(http_method) do |path, *request_opts, &block|
         request(http_method, path, *request_opts, &block)
       end
@@ -299,28 +299,24 @@ class SimpleRESTClient
 
   private
 
-  def build_uri path='/', query={}
+  def build_uri(path = '/', query = {})
     # Base
     build_args = {
       host: address,
       port: port,
-      path: "#{base_path}/#{path}".gsub(/\/+/, '/'),
+      path: "#{base_path}/#{path}".gsub(/\/+/, '/')
     }
     # Basic Auth
-    build_args.merge!(
-      userinfo: "#{ERB::Util.url_encode(username)}:#{ERB::Util.url_encode(password.to_s)}",
-    ) if username
+    build_args[:userinfo] = "#{ERB::Util.url_encode(username)}:#{ERB::Util.url_encode(password.to_s)}" if username
     # Query
     conflicting_query_keys = (base_query.keys & query.keys)
     unless conflicting_query_keys.empty?
       raise ArgumentError, "Passed query parameters conflict with base_query parameters: #{conflicting_query_keys.join(', ')}."
     end
     merged_query = base_query.merge(query)
-    build_args.merge!(
-      query: URI.encode_www_form(merged_query),
-    ) unless merged_query.empty?
+    build_args[:query] = URI.encode_www_form(merged_query) unless merged_query.empty?
     # Build
-    ( net_http_attrs[:use_ssl] ? URI::HTTPS : URI::HTTP ).build(build_args)
+    (net_http_attrs[:use_ssl] ? URI::HTTPS : URI::HTTP).build(build_args)
   end
 
   def build_request(http_method, uri, headers, body, body_stream)
@@ -334,17 +330,17 @@ class SimpleRESTClient
   end
 
   def request_class_from_method(http_method)
-    request_class = Net::HTTP.const_get(http_method.downcase.capitalize)
+    Net::HTTP.const_get(http_method.downcase.capitalize)
   rescue NameError
     raise ArgumentError, "Unknown HTTP method named #{http_method}!"
   end
 
   def validate_request(request_class, body, body_stream)
     if !request_class.const_get(:REQUEST_HAS_BODY) && body
-      raise ArgumentError.new("unknown keyword: body")
+      raise ArgumentError, "unknown keyword: body"
     end
     if !request_class.const_get(:REQUEST_HAS_BODY) && body_stream
-      raise ArgumentError.new("unknown keyword: body_stream")
+      raise ArgumentError, "unknown keyword: body_stream"
     end
   end
 
@@ -354,16 +350,16 @@ class SimpleRESTClient
       raise ArgumentError, "Passed headers conflict with base_headers: #{conflicting_header_keys.join(', ')}."
     end
     final_headers = base_headers
-      .dup
-      .merge(headers)
-      .merge('user-agent' => "#{self.class}/#{self.class.const_get(:VERSION)} (#{RUBY_DESCRIPTION})")
+                    .dup
+                    .merge(headers)
+                    .merge('user-agent' => "#{self.class}/#{self.class.const_get(:VERSION)} (#{RUBY_DESCRIPTION})")
     final_headers
-      .map{|k,v| [k.to_s, v.to_s]}
+      .map { |k, v| [k.to_s, v.to_s] }
       .to_h
   end
 
   # Set given #net_http attributes, execute given block, and restore all attributes.
-  def with_net_http_attrs net_http_attrs
+  def with_net_http_attrs(net_http_attrs)
     original_net_http_attrs = {}
     net_http_attrs.each_key do |attribute|
       original_net_http_attrs[attribute] = net_http.send(attribute)
@@ -386,7 +382,7 @@ class SimpleRESTClient
     end
     if block
       net_http.request(request) do |response|
-        return block.call(process_response(request, response))
+        return yield(process_response(request, response))
       end
     else
       process_response(request, net_http.request(request))
@@ -402,18 +398,18 @@ class SimpleRESTClient
   end
 
   # Implement a solution for https://bugs.ruby-lang.org/issues/2567
-  def fix_response_encoding response
+  def fix_response_encoding(response)
     fix_response_body(response)
     fix_response_read_body(response)
   end
 
   # Wrap around Net:HTTPResponse#body to make it respect headers charset.
-  def fix_response_body response
+  def fix_response_body(response)
     original_body = response.method(:body)
     response.define_singleton_method(:body) do |*args, &block|
       body = original_body.call(*args, &block)
       if response.type_params['charset'] && body.respond_to?(:force_encoding) &&
-        body.force_encoding(response.type_params['charset'])
+         body.force_encoding(response.type_params['charset'])
       end
       body
     end
@@ -422,7 +418,7 @@ class SimpleRESTClient
   # Wrap around Net:HTTPResponse#read_body to make it respect headers charset.
   def fix_response_read_body(response)
     original_read_body = response.method(:read_body)
-    response.define_singleton_method(:read_body) do |dest=nil, &block|
+    response.define_singleton_method(:read_body) do |dest = nil, &block|
       charset = type_params['charset']
       charset = 'ASCII-8BIT' unless charset
       if block
@@ -437,7 +433,7 @@ class SimpleRESTClient
       else
         ret_value = original_read_body.call(dest)
         if ret_value && charset
-          dest.force_encoding(charset) if dest
+          dest&.force_encoding(charset)
           ret_value.force_encoding(charset)
         end
         ret_value
@@ -445,7 +441,7 @@ class SimpleRESTClient
     end
   end
 
-  def log level, message
+  def log(level, message)
     return unless logger
     logger.send(level, message)
   end
@@ -459,10 +455,9 @@ class SimpleRESTClient
       begin
         block.call
       rescue
-        log(:error, "Failed to #{request.method.upcase} #{request.uri}: #{$!} (#{$!.class})")
-        raise $!
+        log(:error, "Failed to #{request.method.upcase} #{request.uri}: #{$ERROR_INFO} (#{$ERROR_INFO.class})")
+        raise $ERROR_INFO
       end
     end
   end
-
 end
