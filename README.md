@@ -4,16 +4,16 @@ Gem to aid construction of [REST](https://en.wikipedia.org/wiki/Representational
 
 ## Usage
 
+### Construction
+
 It can be used as a stand alone object:
 
 ```ruby
 require 'simple_rest_client'
 json_placeholder = SimpleRESTClient.new(
   address: 'jsonplaceholder.typicode.com',
-  default_send_format: Hash.new(:json),
-  default_receive_format: Hash.new(:json),
 )
-json_placeholder.get('/users/1').parsed_body # => Hash
+json_placeholder.get('/users/1').body
 ```
 
 Or as a base class:
@@ -24,28 +24,27 @@ class JSONPlaceholder < SimpleRESTClient
   def initialize
     super(
       address: 'jsonplaceholder.typicode.com',
-      default_send_format: Hash.new(:json),
-      default_receive_format: Hash.new(:json),
     )
   end
-  def posts
-    get('/users').parsed_body
+  def users
+    get('/users').body
   end
 end
 json_placeholder = JSONPlaceholder.new
-json_placeholder.posts # => Hash
+json_placeholder.users
 ```
 
 Note that you can alternatively use the builder pattern with the constructor (useful for complex scenarios):
 
 ```ruby
 SimpleRESTClient.new(address: 'jsonplaceholder.typicode.com') do |c|
-  c.default_send_format    = Hash.new(:json)
-  c.default_receive_format = Hash.new(:json)
+  c.base_path = '/v1'
+  c.username  = 'username'
+  c.password  = 'password'
 )
 ```
 
-#### Base request parameters
+##### Base request parameters
 
 Many APIs have common attributes to all URIs / requests. You can set up those with:
 
@@ -58,7 +57,7 @@ SimpleRESTClient.new(
 )
 ```
 
-#### Net::HTTP attributes
+##### Net::HTTP attributes
 
 You can costumize any Net::HTTP attributes:
 
@@ -73,7 +72,7 @@ SimpleRESTClient.new(
 )
 ```
 
-#### Authentication
+##### Authentication
 
 Basic Auth can be set up with:
 
@@ -87,50 +86,7 @@ SimpleRESTClient.new(
 
 Many APIs do authentication via a token, passed either via a query string, or a header. You can use <tt>:base_path</tt> and <tt>:base_headers</tt> for that cases.
 
-#### Default Status Code validation
-
-SimpleRESTClient does its best to deliver sensible defaults regarding status code validation. However, **each API is unique**, and you should set thing up according to your own API.
-
-Example:
-
-```ruby
-SimpleRESTClient.new(
-  address:  'example.com',
-  default_expected_status_code: Hash.new(:successful).merge(delete: 204),
-)
-```
-
-This will accept any 2XX codes for all requests, but only 204 for DELETE. In all other cases, an exception is raised.
-
-See SimpleRESTClient::Response::DEFAULT_EXPECTED_STATUS_CODE to check the default values.
-
-#### Default Media Type format
-
-Most APIs have a common media format (such as JSON). SimpleRESTClient can do some work for you (set Accept / Content-Type headers and deserialize the body):
-
-```ruby
-SimpleRESTClient.new(
-  address:  'example.com',
-  default_send_format: Hash.new(:json),
-  default_receive_format: Hash.new(:json),
-)
-```
-
-With this set up you can easily fetch JSON:
-
-```ruby
-# Set Accept header, and return parsed JSON
-simple_rest_client.get('/posts/1').parsed_body # => Hash, parsed JSON
-```
-
-and send JSON:
-
-```ruby
-# Set Content-Type header, and use JSON#generate on body attribute
-simple_rest_client.put('/posts/1', body: {user: 'John'})
-```
-
-#### Logging
+##### Logging
 
 Minimum logging support is also implemented:
 
@@ -144,7 +100,7 @@ simple_rest_client.get('/posts/1')
 # !> I, [2016-05-02T22:42:01.486768 #28083]  INFO -- : GET http://jsonplaceholder.typicode.com/posts/1
 ```
 
-#### Hooks
+##### Hooks
 
 You can implement the [observer pattern](https://en.wikipedia.org/wiki/Observer_pattern) with hooks:
 
@@ -167,22 +123,16 @@ SimpleRESTClient.new(address: 'example.com') do |c|
 end
 ```
 
-### Performing Requests
+## Performing Requests
 
 You can perform a request by invoking a method with the same name of the HTTP method. Examples:
 
 ```ruby
-simple_rest_client.get('/posts/1', receive_format: :json) # => SimpleRESTClient::Response
-simple_rest_client.put('/posts/1', body: {user: 'John'}, send_format: :json) # => SimpleRESTClient::Response
+simple_rest_client.get('/posts/1')
+simple_rest_client.put('/posts/1', body: 'text')
 ```
 
-Without a block, requests will always return a SimpleRESTClient::Response object. This object uses SimpleDelegator to send all messages to the original Net::HTTPResponse object, but decorates it with some extra features:
-
-```ruby
-response = simple_rest_client.get('/posts/1', receive_format: :json)
-response.body # String, from Net::HTTPResponse#body
-response.parsed_body # Hash, parsed JSON body (SimpleRESTClient::Response#parsed_body)
-```
+Without a block, requests will always return a Net::HTTPResponse object.
 
 If you do requests with a block, the response will be yielded to it:
 
@@ -205,26 +155,6 @@ File.open('big_file', 'r') do |io|
 end
 ```
 
-#### Status Code validation
-
-Status code validation always follows the default set at SimpleRESTClient#initialize with <tt>:default_expected_status_code</tt>, but can be overwritten by request:
-
-```ruby
-simple_rest_client.delete('/posts/1', expected_status_code: 204)
-simple_rest_client.delete('/posts/1', expected_status_code: [200, 204])
-simple_rest_client.delete('/posts/1', expected_status_code: (200...300))
-simple_rest_client.delete('/posts/1', expected_status_code: Net::HTTPOK)
-simple_rest_client.delete('/posts/1', expected_status_code: :successful)
-```
-
-It can also be disabled:
-
-```ruby
-simple_rest_client.delete('/posts/1', expected_status_code: nil) do |response|
-  # do your own status code validation
-end
-```
-
 #### Setting per request Net::HTTP attributes
 
 Sometimes it is useful to set up Net::HTTP attributes per request (eg: increased timeout only for a particular request):
@@ -236,17 +166,6 @@ simple_rest_client.get(
     read_timeout: 300,
   }
 )
-```
-
-#### Per Request Media Format
-
-Generally media formats are set up at the constructor with <tt>:default_send_format</tt> and <tt>:default_receive_format</tt>, but can be overwritten:
-
-```ruby
-# Disable
-simple_rest_client.get('/posts/1/attachment/1', receive_format: nil)
-# Force JSON
-simple_rest_client.get('/posts/1', receive_format: :json)
 ```
 
 ## Design Principles
