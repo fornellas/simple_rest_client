@@ -12,17 +12,21 @@ RSpec.describe SimpleRESTClient do
   let(:base_headers) { {base_header_name: 'base_header_value'} }
   let(:body) { 'request_body' }
   let(:body_stream_text) { "body\n" * 10 }
+
   def body_stream text
     StringIO.new(text, 'r')
   end
+
   let(:username) { 'username' }
   let(:password) { 'password' }
   let(:default_headers) do
     Net::HTTP::Get.new('/').to_hash.merge(
-      'user-agent' => "#{described_class}/#{described_class.const_get(:VERSION)} (#{RUBY_DESCRIPTION}) Ruby"
+      'user-agent' => "#{described_class}/#{described_class.const_get(:VERSION)} (#{RUBY_DESCRIPTION})"
     )
   end
+
   subject { described_class.new(address: address) }
+
   context '#initialize' do
     context '#port' do
       context 'defaults' do
@@ -31,6 +35,7 @@ RSpec.describe SimpleRESTClient do
             expect(subject.port).to eq(80)
           end
         end
+
         context 'HTTPS' do
           subject do
             described_class.new(
@@ -40,6 +45,7 @@ RSpec.describe SimpleRESTClient do
               }
             )
           end
+
           it 'is set to 443' do
             expect(subject.port).to eq(443)
           end
@@ -50,21 +56,25 @@ RSpec.describe SimpleRESTClient do
       context 'defaults' do
         context 'not specified' do
           it 'is set to DEFAULT_NET_HTTP_ATTRS' do
-            expect(subject.net_http_attrs).to eq(described_class.const_get(:DEFAULT_NET_HTTP_ATTRS))
+            expect(subject.net_http_attrs)
+              .to eq(described_class.const_get(:DEFAULT_NET_HTTP_ATTRS))
           end
         end
+
         context 'port is 443' do
           let(:port) { 443 }
+
           context ':use_ssl not specified' do
-            subject do
-              described_class.new(address: address, port: port)
-            end
+            subject { described_class.new(address: address, port: port) }
+
             it 'sets :use_ssl' do
               expect(subject.net_http_attrs[:use_ssl]).to eq(true)
             end
           end
+
           context ':use_ssl specified' do
             let(:use_ssl_value) { false }
+
             subject do
               described_class.new(
                 address: address,
@@ -74,6 +84,7 @@ RSpec.describe SimpleRESTClient do
                 }
               )
             end
+
             it 'keeps :use_ssl value' do
               expect(subject.net_http_attrs[:use_ssl]).to eq(use_ssl_value)
             end
@@ -96,6 +107,7 @@ RSpec.describe SimpleRESTClient do
     ].each do |http_method|
       request_has_body = Net::HTTP.const_get(http_method.downcase.capitalize)
         .const_get(:REQUEST_HAS_BODY)
+
       context "\##{http_method}" do
         it 'calls #request' do
           stub_request(http_method, "#{address}#{path}")
@@ -105,6 +117,7 @@ RSpec.describe SimpleRESTClient do
             .and_call_original
           subject.send(http_method, path, request_parameters)
         end
+
         if request_has_body
           it "works with static body" do
             request_parameters.merge!(body: body)
@@ -117,6 +130,7 @@ RSpec.describe SimpleRESTClient do
             subject.send(http_method, path, request_parameters)
             expect(request).to have_been_requested
           end
+
           it "works with streaming body" do
             request = stub_request(http_method, "#{address}#{path}")
               .with(request_parameters.merge(body: body_stream_text))
@@ -136,6 +150,7 @@ RSpec.describe SimpleRESTClient do
             )
             expect(request).to have_been_requested
           end
+
           it "works with no body" do
             request = stub_request(http_method, "#{address}#{path}")
             .with(request_parameters)
@@ -161,14 +176,17 @@ RSpec.describe SimpleRESTClient do
       end
     end
   end
+
   context '#request' do
     context 'making requests' do
       let(:http_method) { :mkcol }
+
       it 'can perform generic requests' do
         request = stub_request(http_method, "#{address}#{path}")
         subject.request(http_method, path)
         expect(request).to have_been_requested
       end
+
       it 'passes net_http_attrs to Net::HTTP.start' do
         stub_request(http_method, "#{address}#{path}")
         subject.net_http_attrs.each do |key, value|
@@ -177,6 +195,7 @@ RSpec.describe SimpleRESTClient do
         subject.request(http_method, path)
       end
     end
+
     context '#base_path' do
       context 'unset' do
         it 'does requests without base_path prefix' do
@@ -185,10 +204,12 @@ RSpec.describe SimpleRESTClient do
           expect(request).to have_been_requested
         end
       end
+
       context 'set' do
         subject do
           described_class.new(address: address, base_path: base_path)
         end
+
         it 'prefix requests with base_path' do
           request = stub_request(:get, "#{address}#{base_path}#{path}")
           subject.send(:get, path)
@@ -196,6 +217,7 @@ RSpec.describe SimpleRESTClient do
         end
       end
     end
+
     context '#base_query' do
       context 'unset' do
         it 'does not change query' do
@@ -205,10 +227,12 @@ RSpec.describe SimpleRESTClient do
           expect(request).to have_been_requested
         end
       end
+
       context 'set' do
         subject do
           described_class.new(address: address, base_query: base_query)
         end
+
         context 'conflicting parameters' do
           it 'raises ArgumentError' do
             expect do
@@ -219,27 +243,31 @@ RSpec.describe SimpleRESTClient do
             )
           end
         end
+
         it 'sets base_query parameters' do
           request = stub_request(:get, "#{address}#{path}")
-          .with(query: base_query)
+            .with(query: base_query)
           subject.send(:get, path)
           expect(request).to have_been_requested
         end
       end
     end
+
     context 'base_headers' do
       context 'unset' do
         it 'does not send extra headers' do
           request = stub_request(:get, "#{address}#{path}")
-          .with(headers: default_headers)
+            .with(headers: default_headers)
           subject.send(:get, path)
           expect(request).to have_been_requested
         end
       end
+
       context 'set' do
         subject do
           described_class.new(address: address, base_headers: base_headers)
         end
+
         context 'conflicting parameters' do
           it 'raises ArgumentError' do
             expect do
@@ -250,6 +278,7 @@ RSpec.describe SimpleRESTClient do
             )
           end
         end
+
         it 'sets base_headers' do
           request = stub_request(:get, "#{address}#{path}")
           .with(headers: default_headers.merge(headers))
@@ -258,6 +287,7 @@ RSpec.describe SimpleRESTClient do
         end
       end
     end
+
     context '#username and #password' do
       context 'unset' do
         it 'does not use basic auth' do
@@ -266,6 +296,7 @@ RSpec.describe SimpleRESTClient do
           expect(request).to have_been_requested
         end
       end
+
       context 'set' do
         subject do
           described_class.new(
@@ -274,6 +305,7 @@ RSpec.describe SimpleRESTClient do
           password: password
           )
         end
+
         it 'uses basic auth' do
           request = stub_request(:get, "#{username}:#{password}@#{address}#{path}")
           subject.send(:get, path, headers: headers)
@@ -281,250 +313,7 @@ RSpec.describe SimpleRESTClient do
         end
       end
     end
-    context 'expected_status_code' do
-      shared_examples :expected_status_code do |expected_status_code:, unexpected_status_code:, real_status_code:|
-        context "expected #{expected_status_code}, got #{real_status_code}" do
-          it 'does not raise' do
-            request = stub_request(:get, "#{address}#{path}")
-              .to_return(status: real_status_code)
-            expect do
-              subject.get(path, expected_status_code: expected_status_code)
-            end.not_to raise_error
-            expect(request).to have_been_requested
-          end
-        end
-        context "expected #{unexpected_status_code}, got #{real_status_code}" do
-          it 'raises' do
-            request = stub_request(:get, "#{address}#{path}")
-            .to_return(status: real_status_code)
-            expect do
-              subject.get(path, expected_status_code: unexpected_status_code)
-            end.to raise_error(described_class.const_get(:Response).const_get(:UnexpectedStatusCode))
-            expect(request).to have_been_requested
-          end
-        end
-      end
-      context 'not specified' do
-        it 'does not raise for default expected value' do
-          request = stub_request(:get, "#{address}#{path}")
-            .to_return(status: 200)
-          expect do
-            subject.get(path)
-          end.not_to raise_error
-          expect(request).to have_been_requested
-        end
-        it 'raises for non default expected value' do
-          request = stub_request(:get, "#{address}#{path}")
-          .to_return(status: 300)
-          expect do
-            subject.get(path)
-          end.to raise_error(described_class.const_get(:Response).const_get(:UnexpectedStatusCode))
-          expect(request).to have_been_requested
-        end
-      end
-      context 'specified' do
-        context 'as number' do
-          include_examples(
-            :expected_status_code,
-            expected_status_code:   200,
-            unexpected_status_code: 202,
-            real_status_code:       200
-          )
-        end
-        context 'as array' do
-          include_examples(
-            :expected_status_code,
-            expected_status_code:   [200, 202],
-            unexpected_status_code: 201,
-            real_status_code:       200
-          )
-        end
-        context 'as symbol' do
-          [
-            [:informational, 201, 100],
-            [:successful,    301, 202],
-            [:redirection,   201, 301],
-            [:client_error,  201, 400],
-            [:server_error,  201, 503],
-          ].each do |args|
-            expected_status_code, unexpected_status_code, real_status_code = *args
-            context ":#{expected_status_code}" do
-              include_examples(
-                :expected_status_code,
-                expected_status_code:   expected_status_code,
-                unexpected_status_code: unexpected_status_code,
-                real_status_code:       real_status_code
-              )
-            end
-          end
-        end
-        context 'as class' do
-          [
-            [Net::HTTPInformation, 200, 100],
-            [Net::HTTPSuccess,     100, 200],
-            [Net::HTTPRedirection, 100, 300],
-            [Net::HTTPClientError, 100, 400],
-            [Net::HTTPServerError, 100, 500],
-          ].each do |args|
-            expected_status_code, unexpected_status_code, real_status_code = *args
-            context "#{expected_status_code}" do
-              include_examples(
-                :expected_status_code,
-                expected_status_code:   expected_status_code,
-                unexpected_status_code: unexpected_status_code,
-                real_status_code:       real_status_code
-              )
-            end
-          end
-        end
-        context 'nil' do
-          it 'ignores status code' do
-            request = stub_request(:get, "#{address}#{path}")
-              .to_return(status: 500)
-            expect do
-              subject.get(path, expected_status_code: nil)
-            end.not_to raise_error
-            expect(request).to have_been_requested
-          end
-        end
-      end
-    end
-    context 'receive_format' do
-      shared_examples :receive_format do |receive_format:, accept:, response_body:, parsed_body:|
-        context receive_format.inspect do
-          context 'valid Content-Type response' do
-            let(:http_method) { :get }
-            let!(:request) do
-              stub_request(http_method, "#{address}#{path}")
-                .with(
-                  headers: default_headers
-                    .merge('Accept' => accept),
-                )
-                .and_return(
-                  headers: {'Content-Type' => accept},
-                  status: 200,
-                  body: response_body,
-                )
-            end
-            it "sets header \"Accept: #{accept}\"" do
-              subject.send(http_method, path, receive_format: receive_format)
-              expect(request).to have_been_requested
-            end
-            it 'sets SimpleRESTClient::Response#receive_format' do
-              response = subject.send(
-                http_method,
-                path,
-                receive_format: receive_format
-              )
-              expect(response.receive_format).to eq(receive_format)
-            end
-            context 'SimpleRESTClient::Response#parsed_body' do
-              it 'returns parsed body' do
-                response = subject.send(
-                  http_method,
-                  path,
-                  receive_format: receive_format
-                )
-                expect(response.parsed_body).to eq(parsed_body)
-              end
-            end
-          end
-          context 'invalid Content-Type response' do
-            let(:http_method) { :get }
-            let!(:request) do
-              stub_request(http_method, "#{address}#{path}")
-                .with(
-                  headers: default_headers
-                    .merge('Accept' => accept),
-                )
-                .and_return(
-                  headers: {'Content-Type' => 'invalid/type'},
-                  status: 200,
-                  body: response_body,
-                )
-            end
-            it 'raises UnexpectedContentType' do
-              expect do
-                subject.send(http_method, path, receive_format: receive_format)
-                  .parsed_body
-              end.to raise_error(
-                described_class.const_get(:Response)
-                  .const_get(:UnexpectedContentType)
-              )
-            end
-          end
-        end
-      end
-      response_hash = {'a' => '1', 'b' => '2'}.freeze
-      include_examples(:receive_format,
-        receive_format: :json,
-        accept: 'application/json',
-        response_body: JSON.generate(response_hash),
-        parsed_body: response_hash,
-      )
-      include_examples(:receive_format,
-        receive_format: :yaml,
-        accept: 'text/yaml',
-        response_body: YAML.dump(response_hash),
-        parsed_body: response_hash,
-      )
-      context 'invalid format' do
-        it 'raises ArgumentError' do
-          expect do
-            subject.request(:get, '/', receive_format: :invalid_format)
-          end.to raise_error(ArgumentError, /unknown.+receive_format/i)
-        end
-      end
-    end
-    context 'send_format' do
-      shared_examples :send_format do |send_format:, content_type:, body:, serialized_body:|
-        context send_format.inspect do
-          let(:http_method) { :post }
-          let!(:request) do
-            stub_request(http_method, "#{address}#{path}")
-              .with(
-                headers: default_headers
-                  .merge('Content-Type' => content_type),
-                body: serialized_body,
-              )
-              .and_return(
-                headers: {'Content-Type' => content_type},
-                status: 204,
-              )
-          end
-          it "sets header Content-Type: #{content_type} and serializes body" do
-            subject.send(http_method, path,
-              body: body,
-              send_format: send_format,
-              receive_format: nil,
-            )
-          end
-        end
-      end
-      request_hash = {'a' => '1', 'b' => '2'}.freeze
-      include_examples(:send_format,
-        send_format: :json,
-        content_type: 'application/json',
-        body: request_hash,
-        serialized_body: JSON.generate(request_hash),
-      )
-      include_examples(:send_format,
-        send_format: :yaml,
-        content_type: 'text/yaml',
-        body: request_hash,
-        serialized_body: YAML.dump(request_hash),
-      )
-      context 'invalid format' do
-        it 'raises ArgumentError' do
-          expect do
-            subject.request(
-              :post, '/',
-              send_format: :invalid_format, receive_format: nil
-            )
-          end.to raise_error(ArgumentError, /unknown.+send_format/i)
-        end
-      end
-    end
+
     # Test workarounds for https://bugs.ruby-lang.org/issues/2567
     context 'response body encoding' do
       let(:utf8_text) { 'fábio' }
@@ -532,6 +321,7 @@ RSpec.describe SimpleRESTClient do
       let(:raw_body) do
         utf8_text.encode(body_encoding).force_encoding('US-ASCII')
       end
+
       context 'charset at headers' do
         before(:example) do
           @request = stub_request(:get, "#{address}:#{path}")
@@ -542,16 +332,20 @@ RSpec.describe SimpleRESTClient do
               )
             )
         end
+
         after(:example) do
           expect(@response_body.encoding.to_s).to eq(body_encoding)
           expect(@response_body.encode('UTF-8')).to eq(utf8_text)
         end
+
         it 'Net::HTTPResponse#body' do
           @response_body = subject.request(:get, path).body
         end
+
         it 'Net::HTTPResponse#read_body' do
           @response_body = subject.request(:get, path).read_body
         end
+
         it 'Net::HTTPResponse#read_body (with block)' do
           @response_body = nil
           subject.request(:get, path) do |response|
@@ -565,6 +359,7 @@ RSpec.describe SimpleRESTClient do
           end
         end
       end
+
       context 'no charset at headers defaults to ASCII-8BIT' do
         before(:example) do
           @request = stub_request(:get, "#{address}:#{path}")
@@ -575,16 +370,20 @@ RSpec.describe SimpleRESTClient do
               )
             )
         end
+
         after(:example) do
           expect(@response_body.encoding.to_s).to eq('ASCII-8BIT')
           expect(@response_body.b).to eq(raw_body.b)
         end
+
         it 'Net::HTTPResponse#body' do
           @response_body = subject.request(:get, path).body
         end
+
         it 'Net::HTTPResponse#read_body' do
           @response_body = subject.request(:get, path).read_body
         end
+
         it 'Net::HTTPResponse#read_body (with block)' do
           @response_body = nil
           subject.request(:get, path) do |response|
@@ -599,18 +398,21 @@ RSpec.describe SimpleRESTClient do
         end
       end
     end
+
     context 'hooks' do
       before(:example) do
         @request = stub_request(:get, "#{address}:#{path}")
           .to_return(body: body)
         @hook_calls = 0
       end
+
       after(:example) do
         expect do
           subject.get(path)
         end.to change{@hook_calls}.from(0).to(1)
         expect(@request).to have_been_requested
       end
+
       example 'pre request' do
         subject.add_pre_request_hook do |request|
           @hook_calls += 1
@@ -618,15 +420,17 @@ RSpec.describe SimpleRESTClient do
           expect(request.uri.path).to eq(path)
         end
       end
+
       example 'post request' do
         subject.add_post_request_hook do |response, request|
           @hook_calls += 1
-          expect(response).to be_a(described_class.const_get(:Response))
+          expect(response).to be_a(Net::HTTPResponse)
           expect(response.body).to eq(body)
           expect(request).to be_a(Net::HTTPRequest)
           expect(request.uri.path).to eq(path)
         end
       end
+
       context 'around request' do
         it 'calls hook' do
           subject.add_around_request_hook do |block, request|
@@ -634,46 +438,102 @@ RSpec.describe SimpleRESTClient do
             expect(request).to be_a(Net::HTTPRequest)
             expect(request.uri.path).to eq(path)
             response = block.call
-            expect(response).to be_a(described_class.const_get(:Response))
+            expect(response).to be_a(Net::HTTPResponse)
             expect(response.body).to eq(body)
           end
         end
       end
     end
+
     context 'logging' do
       let(:logger) { instance_spy(Logger) }
+
       subject { described_class.new(address: address, logger: logger) }
-      context 'request successful' do
-        before(:example) { stub_request(:get, "#{address}:#{path}") }
-        it 'logs request' do
-        end
-      end
-      context 'request failed' do
-        let(:error_status_code) { 500 }
-        before(:example) do
-          stub_request(:get, "#{address}:#{path}")
-            .and_return(status: error_status_code)
-        end
-        it 'logs request and error' do
+
+      shared_examples :logs_request do
+        it 'logs the request' do
           expect(logger).to receive(:info)
             .with("GET http://#{address}#{path}")
-          expect(logger).to receive(:error)
-            .with("Failed to GET http://#{address}#{path}: Expected HTTP status code to be 200, but got #{error_status_code}.")
-          begin
-            subject.get(path)
-          rescue described_class.const_get(:Response).const_get(:UnexpectedStatusCode)
+          subject.get(path)
+        end
+      end
+
+      shared_examples :logs_with_failure do
+        context 'processing failed' do
+          let(:exception) { Class.new(RuntimeError).new }
+
+          it 'logs' do
+            expect(logger).to receive(:info)
+              .with("GET http://#{address}#{path}")
+            expect(logger).to receive(:error)
+              .with("Failed to GET http://#{address}#{path}: #{exception} (#{exception.class})")
+            expect do
+              subject.get(path) { raise exception }
+            end.to raise_error(exception)
+          end
+        end
+      end
+
+      context 'request successful' do
+        before(:example) { stub_request(:get, "#{address}:#{path}") }
+        include_examples :logs_request
+        include_examples :logs_with_failure
+      end
+
+      context 'request failed' do
+        context 'status code 500' do
+          let(:error_status_code) { 500 }
+          before(:example) do
+            stub_request(:get, "#{address}:#{path}")
+              .and_return(status: error_status_code)
+          end
+
+          include_examples :logs_request
+          include_examples :logs_with_failure
+        end
+
+        context 'timeout' do
+          before(:example) do
+            stub_request(:get, "#{address}:#{path}").to_timeout
+          end
+
+          it 'logs the request' do
+            expect(logger).to receive(:info)
+              .with("GET http://#{address}#{path}")
+            begin
+              subject.get(path)
+            rescue Timeout::Error
+            end
+          end
+
+          it 'logs the error' do
+            expect(logger).to receive(:error)
+              .with("Failed to GET http://#{address}#{path}: execution expired (#{Timeout::Error})")
+            begin
+              subject.get(path)
+            rescue Timeout::Error
+            end
+          end
+
+          it 'raises Timeout::Error' do
+            expect do
+              subject.get(path)
+            end.to raise_error(Timeout::Error)
           end
         end
       end
     end
+
     context 'net_http' do
       let!(:original_open_timeout) { subject.net_http.open_timeout }
       let!(:original_read_timeout) { subject.net_http.read_timeout }
       let(:override_open_timeout) { 23412 }
       let(:override_read_timeout) { 23412 }
+
       before(:example) do
         stub_request(:get, "#{address}:#{path}")
       end
+
       it 'allows to override #net_http attributes' do
         expect(subject.net_http)
           .to receive(:open_timeout=)

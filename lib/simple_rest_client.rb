@@ -2,9 +2,6 @@ require 'erb'
 require 'uri'
 require 'net/http'
 require 'net/https'
-require 'json'
-require 'psych'
-require_relative 'simple_rest_client/response'
 require_relative 'simple_rest_client/version'
 
 # REST API gateway helper class.
@@ -16,11 +13,6 @@ class SimpleRESTClient
     read_timeout: 30,
     ssl_timeout:  10,
   }.freeze
-
-  # Default value for #default_send_format
-  DEFAULT_SEND_FORMAT    = {}.freeze
-  # Default value for #default_receive_format
-  DEFAULT_RECEIVE_FORMAT = {}.freeze
 
   # Hostname or IP address of the server.
   attr_reader :address
@@ -45,16 +37,6 @@ class SimpleRESTClient
 
   # Password for basic auth.
   attr_accessor :password
-
-  # Hash with default values for #request. Keys are Symbol to HTTP methods (eg: <tt>:get</tt>), values are anything accepted by #request's expected_status_code parameter.
-  # General purpose defaults are defined at SimpleRESTClient::Response::DEFAULT_EXPECTED_STATUS_CODE.
-  attr_accessor :default_expected_status_code
-
-  # Hash with default values for #request. Keys are Symbol ot HTTP methods (eg: <tt>:get</tt>), values are the default format for this method.
-  attr_accessor :default_send_format
-
-  # Hash with default values for #request. Keys are Symbol ot HTTP methods (eg: <tt>:get</tt>), values are the default format for this method.
-  attr_accessor :default_receive_format
 
   # List of hooks that are called before each request
   attr_reader :pre_request_hooks
@@ -93,9 +75,6 @@ class SimpleRESTClient
   #   net_http_attrs:               DEFAULT_NET_HTTP_ATTRS.dup,
   #   username:                     nil,
   #   password:                     nil,
-  #   default_expected_status_code: SimpleRESTClient::Response::DEFAULT_EXPECTED_STATUS_CODE.dup,
-  #   default_send_format:          DEFAULT_SEND_FORMAT.dup,
-  #   default_receive_format:       DEFAULT_RECEIVE_FORMAT.dup,
   #   logger:                       nil
   # )
   # new(address) {|simple_rest_client| ... }
@@ -108,9 +87,6 @@ class SimpleRESTClient
     net_http_attrs:               DEFAULT_NET_HTTP_ATTRS.dup,
     username:                     nil,
     password:                     nil,
-    default_expected_status_code: SimpleRESTClient::Response::DEFAULT_EXPECTED_STATUS_CODE.dup,
-    default_send_format:          DEFAULT_SEND_FORMAT.dup,
-    default_receive_format:       DEFAULT_RECEIVE_FORMAT.dup,
     logger:                       nil
   )
     @address                        = address
@@ -128,9 +104,6 @@ class SimpleRESTClient
     end
     @username                       = username
     @password                       = password
-    @default_expected_status_code   = default_expected_status_code
-    @default_send_format            = default_send_format
-    @default_receive_format         = default_receive_format
     @logger                         = logger
     @net_http                       = nil
     @pre_request_hooks              = []
@@ -198,9 +171,6 @@ class SimpleRESTClient
   # query:: URI query, in form of a Hash.
   # headers:: Request headers in form of a Hash. Must not conflict with #base_headers.
   # body / body_stream:: For requests tha supporting sending a body, use one of the two to define a payload.
-  # expected_status_code:: Status-code validation. See SimpleRESTClient::Response#expected_status_code.
-  # send_format:: Set format of body. This will set <tt>Content-Type</tt> header accordingly, and serialize given body. Supported formats: <tt>:json</tt> and <tt>:yaml</tt>. Eg:
-  # receive_format:: Set format of response (eg: <tt>:json</tt>). This will set <tt>Accept</tt> header on the requset, and will set <tt>:receive_format</tt> on SimpleRESTClient::Response, to allow usage of SimpleRESTClient::Response#parsed_body.
   # \net_http_attrs:: Hash with attributes of #net_http to change only for this request. Useful for setting up Net::HTTP#read_timeout only for slow requests.
   # Tip: to use Net::HTTPResponse#read_body, you must pass a block (otherwise, response body will be cached to memory).
   # :call-seq:
@@ -208,18 +178,12 @@ class SimpleRESTClient
   #   http_method, path,
   #   query: {}, headers: {},
   #   body: nil, body_stream: nil,
-  #   expected_status_code: default_expected_status_code[http_method],
-  #   send_format: default_send_format[http_method],
-  #   receive_format: default_receive_format[http_method],
   #   net_http_attrs: {},
   # ) {|simple_rest_client_response| ... } -> (block return value)
   # request(
   #   http_method, path,
   #   query: {}, headers: {},
   #   body: nil, body_stream: nil,
-  #   expected_status_code: default_expected_status_code[http_method],
-  #   send_format: default_send_format[http_method],
-  #   receive_format: default_receive_format[http_method],
   #   net_http_attrs: {},
   # ) -> SimpleRESTClient::Response
   def request(
@@ -229,22 +193,18 @@ class SimpleRESTClient
     headers:              {},
     body:                 nil,
     body_stream:          nil,
-    expected_status_code: default_expected_status_code[http_method],
-    send_format:          default_send_format[http_method],
-    receive_format:       default_receive_format[http_method],
     net_http_attrs:       {},
     &block
   )
     uri = build_uri(path, query)
     request = build_request(
       http_method, uri, headers,
-      body, body_stream,
-      receive_format, send_format
+      body, body_stream
     )
     with_net_http_attrs(net_http_attrs) do
       @around_request_hook.call(
         proc do
-          do_request(request, expected_status_code, receive_format, &block)
+          do_request(request, &block)
         end,
         request
       )
@@ -364,32 +324,32 @@ class SimpleRESTClient
     ( net_http_attrs[:use_ssl] ? URI::HTTPS : URI::HTTP ).build(build_args)
   end
 
-  def build_request(
-    http_method, uri, headers,
-    body, body_stream,
-    receive_format, send_format
-  )
-    begin
-      request_class = Net::HTTP.const_get(http_method.downcase.capitalize)
-    rescue NameError
-      raise ArgumentError, "Unknown HTTP method named #{http_method}!"
-    end
+  def build_request(http_method, uri, headers, body, body_stream)
+    request_class = request_class_from_method(http_method)
+    validate_request(request_class, body, body_stream)
+    request = request_class.new(uri, build_headers(headers))
+    request.basic_auth(username, password.to_s) if username
+    request.body = body if body
+    request.body_stream = body_stream if body_stream
+    request
+  end
+
+  def request_class_from_method(http_method)
+    request_class = Net::HTTP.const_get(http_method.downcase.capitalize)
+  rescue NameError
+    raise ArgumentError, "Unknown HTTP method named #{http_method}!"
+  end
+
+  def validate_request(request_class, body, body_stream)
     if !request_class.const_get(:REQUEST_HAS_BODY) && body
       raise ArgumentError.new("unknown keyword: body")
     end
     if !request_class.const_get(:REQUEST_HAS_BODY) && body_stream
       raise ArgumentError.new("unknown keyword: body_stream")
     end
-    request = request_class.new(
-      uri,
-      build_headers(headers, receive_format, send_format)
-    )
-    request.basic_auth(username, password.to_s) if username
-    set_body(request, body, body_stream, send_format)
-    request
   end
 
-  def build_headers headers, receive_format,  send_format
+  def build_headers(headers)
     conflicting_header_keys = base_headers.keys & headers.keys
     unless conflicting_header_keys.empty?
       raise ArgumentError, "Passed headers conflict with base_headers: #{conflicting_header_keys.join(', ')}."
@@ -397,109 +357,45 @@ class SimpleRESTClient
     final_headers = base_headers
       .dup
       .merge(headers)
-      .merge('user-agent' => "#{SimpleRESTClient}/#{SimpleRESTClient::VERSION} (#{RUBY_DESCRIPTION}) Ruby")
-    set_accept_header(final_headers, receive_format)
-    set_content_type(final_headers, send_format)
+      .merge('user-agent' => "#{self.class}/#{self.class.const_get(:VERSION)} (#{RUBY_DESCRIPTION})")
     final_headers
       .map{|k,v| [k.to_s, v.to_s]}
       .to_h
   end
 
-  def set_accept_header headers, receive_format
-    return unless receive_format
-    headers['Accept'] = case receive_format
-      when :json
-        'application/json'
-      when :yaml
-        'text/yaml'
-      else
-        raise ArgumentError, "Unknown receive_format: #{receive_format.inspect}"
-      end
-  end
-
-  def set_content_type headers, send_format
-    return unless send_format
-    headers['Content-Type'] = case send_format
-      when :json
-        'application/json'
-      when :yaml
-        'text/yaml'
-      else
-        raise ArgumentError, "Unknown send_format: #{send_format.inspect}"
-      end
-  end
-
-  def set_body(request, body, body_stream, send_format)
-    if send_format && body_stream
-      raise ArgumentError, "send_format can not be used with body_stream!" if body_stream
-    end
-    case send_format
-    when :json
-      request.body = JSON.generate(body)
-    when :yaml
-      request.body = Psych.dump(body)
-    when nil
-      request.body = body if body
-      request.body_stream = body_stream if body_stream
-    else
-      raise ArgumentError, "Unknown send_format: #{send_format.inspect}!"
-    end
-  end
-
   # Set given #net_http attributes, execute given block, and restore all attributes.
   def with_net_http_attrs net_http_attrs
-    # Save original #net_http attributes
     original_net_http_attrs = {}
     net_http_attrs.each_key do |attribute|
       original_net_http_attrs[attribute] = net_http.send(attribute)
     end
     begin
-      # Set temporary #net_http attributes
       net_http_attrs.each_key do |attribute|
         net_http.send(:"#{attribute}=", net_http_attrs[attribute])
       end
-      # Run block
       yield
     ensure
-      # Restore original #net_http attributes
       net_http_attrs.each_key do |attribute|
         net_http.send(:"#{attribute}=", original_net_http_attrs[attribute])
       end
     end
   end
 
-  def do_request(request, expected_status_code, receive_format, &block)
+  def do_request(request, &block)
     @pre_request_hooks.each do |pre_request_hook|
       pre_request_hook.call(request)
     end
     if block
-      net_http.request(request) do |net_httpresponse|
-        return block.call(
-          process_response(
-            request, net_httpresponse,
-            expected_status_code, receive_format
-          )
-        )
+      net_http.request(request) do |response|
+        return block.call(process_response(request, response))
       end
     else
-      process_response(
-        request, net_http.request(request),
-        expected_status_code, receive_format
-      )
+      process_response(request, net_http.request(request))
     end
   end
 
-  def process_response(
-    request, net_httpresponse,
-    expected_status_code, receive_format
-  )
-    fix_response_encoding(net_httpresponse)
-    response = Response.new(
-      net_httpresponse: net_httpresponse,
-      expected_status_code: expected_status_code,
-      receive_format: receive_format
-    )
-    response.validate_status_code
+  def process_response(request, response)
+    fix_response_encoding(response)
     @post_request_hooks.each do |post_request_hook|
       post_request_hook.call(response, request)
     end
@@ -564,7 +460,7 @@ class SimpleRESTClient
       begin
         block.call
       rescue
-        log(:error, "Failed to #{request.method.upcase} #{request.uri}: #{$!}")
+        log(:error, "Failed to #{request.method.upcase} #{request.uri}: #{$!} (#{$!.class})")
         raise $!
       end
     end
