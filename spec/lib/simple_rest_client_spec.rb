@@ -52,6 +52,7 @@ RSpec.describe SimpleRESTClient do
         end
       end
     end
+
     context '#net_http_attrs' do
       context 'defaults' do
         context 'not specified' do
@@ -93,6 +94,7 @@ RSpec.describe SimpleRESTClient do
       end
     end
   end
+
   context 'HTTP Methods' do
     let(:request_parameters) { {query: query, headers: headers} }
     [
