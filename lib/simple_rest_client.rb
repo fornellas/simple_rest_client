@@ -158,12 +158,11 @@ class SimpleRESTClient
 
   # Performs a generic HTTP method request. Examples:
   #  # Fetch a resource
-  #  simple_rest_client.request(:get, '/posts/3', receive_format: :json) # => Parsed JSON
+  #  simple_rest_client.request(:get, '/posts/3') # => Net::HTTPResponse
   #  # Search for resources
-  #  simple_rest_client.request(:post, '/posts', query: {user: 'John'}, receive_format: :json)  # => Parsed JSON
+  #  simple_rest_client.request(:post, '/posts', query: {user: 'John'})  # => Net::HTTPResponse
   #  # Update a resource
-  #  simple_rest_client.request(:put, '/posts/3', body: {user: 'David'}, send_format: :json)  # => Parsed JSON
-  # It is highly recommended to set <tt>:default_expected_status_code</tt>, <tt>:default_send_format</tt> and <tt>:default_receive_format</tt> at \#initialize according to your particular API to avoid repetition.
+  #  simple_rest_client.request(:put, '/posts/3', body: 'new text')  # => Net::HTTPResponse
   #
   # Arguments description:
   # http_method:: HTTP method to invoke.
