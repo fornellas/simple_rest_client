@@ -1,0 +1,22 @@
+AllCops:
+  TargetRubyVersion: 2.3
+Style/StringLiterals:
+  Enabled: false
+Metrics/LineLength:
+  Enabled: false
+Metrics/MethodLength:
+  Enabled: false
+Metrics/AbcSize:
+  Enabled: false
+Style/GuardClause:
+  Enabled: false
+Style/MultilineBlockChain:
+  Enabled: false
+Style/WordArray:
+  Enabled: false
+Metrics/ClassLength:
+  Enabled: false
+Style/RegexpLiteral:
+  Enabled: false
+Style/ClassAndModuleChildren:
+  Enabled: false
