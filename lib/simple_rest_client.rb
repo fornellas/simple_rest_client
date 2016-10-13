@@ -178,13 +178,13 @@ class SimpleRESTClient
   #   query: {}, headers: {},
   #   body: nil, body_stream: nil,
   #   net_http_attrs: {},
-  # ) {|simple_rest_client_response| ... } -> (block return value)
+  # ) {|response| ... } -> (block return value)
   # request(
   #   http_method, path,
   #   query: {}, headers: {},
   #   body: nil, body_stream: nil,
   #   net_http_attrs: {},
-  # ) -> SimpleRESTClient::Response
+  # ) -> Net::HTTPResponse
   def request(
     http_method,
     path,
