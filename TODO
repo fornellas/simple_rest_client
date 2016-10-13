@@ -1,0 +1,55 @@
+- URI fragment
+- Add Resource DSL
+  - Action
+    - Matches
+      - status code
+      - header (Content-Type)
+    - Handlers
+      - Built-in handlers (JSON, YAML)
+- Resource class
+  - Support lazy loading
+- Doc
+  - #net_http.finish
+- Review project overall
+
+- Expected status code VS default handler
+- Externalize serialization
+- Resource class
+- Suportar lazy loading
+- Validations
+  - status code
+  - header
+    - content_type
+  - parse body
+
+  Resource
+    URI
+
+  URI
+    scheme
+    address
+    path
+    query
+    fragment
+
+  Request
+    URI
+    headers
+    body
+
+    GET    /posts                 api.posts.all
+    GET    /posts?key=value       api.posts.find(key: 'value')
+    GET    /posts/:id             api.posts.new()
+    GET    /posts/:id/comments    post.comments # => Enumerable
+    POST   /posts                 api.posts.create(...)
+    PUT    /posts/:id             post[key] = value ; post.save
+    PATCH  /posts/:id             post[key] = value ; post.save
+    DELETE /posts/:id             post.delete
+
+    GET    /comments
+    GET    /comments?key=value
+    GET    /comments/:id
+    POST   /comments
+    PUT    /comments/:id
+    PATCH  /comments/:id
+    DELETE /comments/:id
